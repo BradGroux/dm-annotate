@@ -17,4 +17,8 @@ cp "Packaging/AppIcon.icns" "${APP_DIR}/Contents/Resources/AppIcon.icns"
 
 chmod +x "${APP_DIR}/Contents/MacOS/${EXECUTABLE_NAME}"
 
+if [[ "${DM_ANNOTATE_SKIP_ADHOC_SIGN:-0}" != "1" ]]; then
+  codesign --force --deep --sign - "${APP_DIR}" >/dev/null
+fi
+
 echo "${APP_DIR}"

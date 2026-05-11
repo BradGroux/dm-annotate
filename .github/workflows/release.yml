@@ -63,7 +63,7 @@ jobs:
           cat > .build/release-notes.md <<'EOF'
           ## dm-annotate ${{ steps.version.outputs.version }}
 
-          Initial public developer preview of Digital Meld Annotate, a native, local-only macOS screen annotation tool.
+          Public developer preview of Digital Meld Annotate, a native, local-only macOS screen annotation tool.
 
           ### Install
 
@@ -84,7 +84,7 @@ jobs:
 
           ### Signing status
 
-          This preview archive is unsigned unless the release workflow was run with Apple Developer ID signing configuration. macOS Gatekeeper may require manual approval to open unsigned builds.
+          This preview archive is ad-hoc signed but not notarized unless the release workflow was run with Apple Developer ID signing configuration. macOS Gatekeeper may require manual approval to open non-notarized builds.
           EOF
 
       - name: Create GitHub release

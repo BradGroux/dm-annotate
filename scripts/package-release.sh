@@ -14,7 +14,8 @@ if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
   codesign --force --deep --options runtime --timestamp --sign "${CODESIGN_IDENTITY}" "${APP_DIR}"
   codesign --verify --strict --deep --verbose=2 "${APP_DIR}"
 else
-  echo "warning: CODESIGN_IDENTITY is not set; packaging an unsigned app." >&2
+  codesign --verify --strict --deep --verbose=2 "${APP_DIR}"
+  echo "warning: CODESIGN_IDENTITY is not set; packaging an ad-hoc signed, non-notarized app." >&2
 fi
 
 mkdir -p "${DIST_DIR}"

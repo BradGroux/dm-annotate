@@ -4,6 +4,12 @@ All notable changes to `dm-annotate` will be documented here.
 
 This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
+## 0.1.2 - 2026-05-11
+
+### Fixed
+
+- Ad-hoc sign local and release app bundles so macOS does not treat the assembled unsigned preview bundle as damaged.
+
 ## 0.1.1 - 2026-05-11
 
 ### Added

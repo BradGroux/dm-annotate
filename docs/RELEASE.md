@@ -118,7 +118,7 @@ It then creates a GitHub Release and attaches:
 
 ## Current release signing status
 
-The automated release workflow currently publishes an unsigned developer preview zip. That is acceptable for early testers who understand macOS Gatekeeper prompts, but not ideal for broad distribution.
+The automated release workflow currently publishes an ad-hoc signed developer preview zip. That is acceptable for early testers who understand macOS Gatekeeper prompts, but not ideal for broad distribution.
 
 Before promoting releases for general users, add Developer ID signing and notarization to the release workflow.
 
