@@ -22,13 +22,25 @@ mkdir -p "${DIST_DIR}"
 rm -f "${ZIP_PATH}"
 ditto -c -k --keepParent "${APP_DIR}" "${ZIP_PATH}"
 
+NOTARIZE_ARGS=()
 if [[ -n "${NOTARIZE_PROFILE:-}" ]]; then
-  if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
-    echo "error: NOTARIZE_PROFILE requires CODESIGN_IDENTITY." >&2
+  NOTARIZE_ARGS=(--keychain-profile "${NOTARIZE_PROFILE}")
+elif [[ -n "${NOTARIZE_APPLE_ID:-}" || -n "${NOTARIZE_TEAM_ID:-}" || -n "${NOTARIZE_PASSWORD:-}" ]]; then
+  if [[ -z "${NOTARIZE_APPLE_ID:-}" || -z "${NOTARIZE_TEAM_ID:-}" || -z "${NOTARIZE_PASSWORD:-}" ]]; then
+    echo "error: NOTARIZE_APPLE_ID, NOTARIZE_TEAM_ID, and NOTARIZE_PASSWORD must be set together." >&2
     exit 1
   fi
 
-  xcrun notarytool submit "${ZIP_PATH}" --keychain-profile "${NOTARIZE_PROFILE}" --wait
+  NOTARIZE_ARGS=(--apple-id "${NOTARIZE_APPLE_ID}" --team-id "${NOTARIZE_TEAM_ID}" --password "${NOTARIZE_PASSWORD}")
+fi
+
+if [[ "${#NOTARIZE_ARGS[@]}" -gt 0 ]]; then
+  if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
+    echo "error: notarization requires CODESIGN_IDENTITY." >&2
+    exit 1
+  fi
+
+  xcrun notarytool submit "${ZIP_PATH}" "${NOTARIZE_ARGS[@]}" --wait
   xcrun stapler staple "${APP_DIR}"
   rm -f "${ZIP_PATH}"
   ditto -c -k --keepParent "${APP_DIR}" "${ZIP_PATH}"

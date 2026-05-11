@@ -78,6 +78,8 @@ open ".build/Digital Meld Annotate.app"
 
 The generated app bundle is unsigned. Release builds should be signed and notarized before distribution.
 
+Developer preview downloads may require manual Gatekeeper approval because they are not notarized. See [Opening developer preview builds](docs/RELEASE.md#opening-developer-preview-builds).
+
 ## Package a release
 
 ```sh

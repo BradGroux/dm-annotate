@@ -12,6 +12,13 @@ jobs:
   release:
     name: Build release
     runs-on: macos-15
+    env:
+      APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+      APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+      APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+      APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+      APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
 
     steps:
       - name: Checkout
@@ -47,8 +54,56 @@ jobs:
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
 
+      - name: Validate signing configuration
+        run: |
+          has_cert="false"
+          has_notary="false"
+
+          if [[ -n "${APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}" || -n "${APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}" || -n "${APPLE_DEVELOPER_IDENTITY}" ]]; then
+            has_cert="true"
+            if [[ -z "${APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}" || -z "${APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}" || -z "${APPLE_DEVELOPER_IDENTITY}" ]]; then
+              echo "Developer ID signing requires APPLE_DEVELOPER_ID_CERTIFICATE_BASE64, APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD, and APPLE_DEVELOPER_IDENTITY." >&2
+              exit 1
+            fi
+          fi
+
+          if [[ -n "${APPLE_NOTARIZATION_APPLE_ID}" || -n "${APPLE_NOTARIZATION_PASSWORD}" || -n "${APPLE_NOTARIZATION_TEAM_ID}" ]]; then
+            has_notary="true"
+            if [[ -z "${APPLE_NOTARIZATION_APPLE_ID}" || -z "${APPLE_NOTARIZATION_PASSWORD}" || -z "${APPLE_NOTARIZATION_TEAM_ID}" ]]; then
+              echo "Notarization requires APPLE_NOTARIZATION_APPLE_ID, APPLE_NOTARIZATION_PASSWORD, and APPLE_NOTARIZATION_TEAM_ID." >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "${has_notary}" == "true" && "${has_cert}" != "true" ]]; then
+            echo "Notarization requires Developer ID signing secrets." >&2
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        if: env.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 != ''
+        run: |
+          certificate_path="${RUNNER_TEMP}/developer-id.p12"
+          keychain_path="${RUNNER_TEMP}/app-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          echo "${APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}" | base64 --decode > "${certificate_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_path}" -P "${APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}" -A -t cert -f pkcs12 -k "${keychain_path}"
+          security list-keychains -d user -s "${keychain_path}"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain_path}"
+          security find-identity -v -p codesigning "${keychain_path}"
+
       - name: Package app
         id: package
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+          NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+          NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
         run: |
           zip_path="$(scripts/package-release.sh)"
           shasum -a 256 "${zip_path}" | tee "${zip_path}.sha256"
@@ -84,7 +139,7 @@ jobs:
 
           ### Signing status
 
-          This preview archive is ad-hoc signed but not notarized unless the release workflow was run with Apple Developer ID signing configuration. macOS Gatekeeper may require manual approval to open non-notarized builds.
+          This archive is Developer ID signed and notarized when Apple signing secrets are configured. Without those secrets, it is an ad-hoc signed developer preview and macOS Gatekeeper may require manual approval.
           EOF
 
       - name: Create GitHub release

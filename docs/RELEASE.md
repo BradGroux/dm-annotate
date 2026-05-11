@@ -120,14 +120,45 @@ It then creates a GitHub Release and attaches:
 
 The automated release workflow currently publishes an ad-hoc signed developer preview zip. That is acceptable for early testers who understand macOS Gatekeeper prompts, but not ideal for broad distribution.
 
-Before promoting releases for general users, add Developer ID signing and notarization to the release workflow.
+Developer ID signing and notarization are supported when the required GitHub Actions secrets are configured.
 
-Required future work:
+Required repository secrets:
 
-- Import a Developer ID Application certificate into the GitHub Actions keychain from repository secrets.
-- Run `codesign --options runtime --timestamp`.
-- Run `xcrun notarytool submit`.
-- Staple the notarization ticket.
-- Attach only the signed, notarized archive to public releases.
+- `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`: base64-encoded `.p12` export containing the Developer ID Application certificate and private key.
+- `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD`: password for the `.p12` export.
+- `APPLE_DEVELOPER_IDENTITY`: full codesigning identity, for example `Developer ID Application: Example LLC (TEAMID)`.
+- `APPLE_NOTARIZATION_APPLE_ID`: Apple ID used for notarization.
+- `APPLE_NOTARIZATION_PASSWORD`: app-specific password for that Apple ID.
+- `APPLE_NOTARIZATION_TEAM_ID`: Apple Developer Team ID.
+
+Create the certificate payload locally:
+
+```sh
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
+Then paste the clipboard value into `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`.
+
+When those secrets are present, the release workflow:
+
+- imports the Developer ID certificate into a temporary keychain,
+- signs the app with hardened runtime,
+- submits the release zip to Apple notarization,
+- staples the notarization ticket to the app,
+- rebuilds the zip with the stapled app,
+- uploads the notarized archive and SHA256 file to GitHub Releases.
+
+## Opening developer preview builds
+
+Ad-hoc signed preview builds are not notarized. macOS may block them with an "Apple could not verify" dialog.
+
+For local testing only, after moving the app to `/Applications`, you can allow it manually:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
+open "/Applications/Digital Meld Annotate.app"
+```
+
+Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
 
 Homebrew distribution should wait until signed/notarized releases are stable.
