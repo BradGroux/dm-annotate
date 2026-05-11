@@ -33,6 +33,7 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 - [Architecture notes](docs/ARCHITECTURE.md)
 - [Release guide](docs/RELEASE.md)
 - [Product requirements](docs/PRD.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

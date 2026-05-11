@@ -83,3 +83,51 @@ The notarization profile should be created with `xcrun notarytool store-credenti
    - Known limitations.
    - Signed/notarized status.
 6. Attach the zip only if it is appropriate for public distribution.
+
+## Automated GitHub releases
+
+The repository includes a tag-driven release workflow:
+
+```text
+.github/workflows/release.yml
+```
+
+To publish a release, update `Packaging/Info.plist`, commit the change, then push a matching version tag:
+
+```sh
+VERSION="0.1.0"
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
+```
+
+The workflow fails if the tag does not match `CFBundleShortVersionString`.
+
+The workflow runs:
+
+- `swift build`
+- `swift test`
+- `plutil -lint Packaging/Info.plist`
+- packaging script syntax checks
+- `scripts/package-release.sh`
+- SHA256 generation
+
+It then creates a GitHub Release and attaches:
+
+- `dm-annotate-VERSION-macos.zip`
+- `dm-annotate-VERSION-macos.zip.sha256`
+
+## Current release signing status
+
+The automated release workflow currently publishes an unsigned developer preview zip. That is acceptable for early testers who understand macOS Gatekeeper prompts, but not ideal for broad distribution.
+
+Before promoting releases for general users, add Developer ID signing and notarization to the release workflow.
+
+Required future work:
+
+- Import a Developer ID Application certificate into the GitHub Actions keychain from repository secrets.
+- Run `codesign --options runtime --timestamp`.
+- Run `xcrun notarytool submit`.
+- Staple the notarization ticket.
+- Attach only the signed, notarized archive to public releases.
+
+Homebrew distribution should wait until signed/notarized releases are stable.
