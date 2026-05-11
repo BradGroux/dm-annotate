@@ -4,6 +4,13 @@ All notable changes to `dm-annotate` will be documented here.
 
 This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
+## 0.1.1 - 2026-05-11
+
+### Added
+
+- App icon generated from the Digital Meld Annotate artwork.
+- App bundle icon wiring for local and GitHub Release builds.
+
 ## 0.1.0 - 2026-05-11
 
 Initial public developer preview.
