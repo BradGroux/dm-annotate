@@ -150,7 +150,7 @@ When those secrets are present, the release workflow:
 
 ## Opening developer preview builds
 
-Ad-hoc signed preview builds are not notarized. macOS may block them with an "Apple could not verify" dialog.
+Ad-hoc signed preview builds are not notarized. Until Developer ID signed/notarized releases are available, macOS may block them with an "Apple could not verify" dialog.
 
 For local testing only, after moving the app to `/Applications`, you can allow it manually:
 

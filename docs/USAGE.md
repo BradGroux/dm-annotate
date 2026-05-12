@@ -17,6 +17,13 @@ scripts/build-app.sh
 open ".build/Digital Meld Annotate.app"
 ```
 
+Release zip downloads are ad-hoc signed developer previews until Developer ID signing and notarization are configured. After moving the app to `/Applications`, run:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
+open "/Applications/Digital Meld Annotate.app"
+```
+
 The app appears in the macOS menu bar and shows a floating toolbar.
 
 ## Permissions

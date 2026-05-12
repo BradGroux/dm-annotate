@@ -10,6 +10,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ### Changed
 
+- Documented the temporary `xattr` quarantine workaround required for ad-hoc signed preview builds.
 - Added README and usage guide screenshots for toolbar layouts plus whiteboard and blackboard modes.
 - Made the toolbar drag grip use adaptive gray so it remains visible in light mode.
 
