@@ -6,6 +6,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Added
+
+- Added a Homebrew Cask definition and installation documentation.
+
 ## 0.1.7 - 2026-05-12
 
 ### Fixed

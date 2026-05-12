@@ -44,6 +44,17 @@ open ".build/Digital Meld Annotate.app"
 
 The app appears in the macOS menu bar and shows a floating toolbar.
 
+## Install with Homebrew
+
+The project ships a Homebrew Cask in `Casks/dm-annotate.rb`:
+
+```sh
+brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
+brew install --cask bradgroux/dm-annotate/dm-annotate
+```
+
+Current preview releases are not notarized yet, so the Gatekeeper command in the Launch section may still be required after Homebrew installs the app.
+
 ## Permissions
 
 macOS may require:
