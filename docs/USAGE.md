@@ -46,11 +46,11 @@ The app appears in the macOS menu bar and shows a floating toolbar.
 
 ## Install with Homebrew
 
-The project ships a Homebrew Cask in `Casks/dm-annotate.rb`:
+The recommended install path is the dedicated `BradGroux/tap` Homebrew tap:
 
 ```sh
-brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
-brew install --cask bradgroux/dm-annotate/dm-annotate
+brew tap BradGroux/tap
+brew install --cask dm-annotate
 ```
 
 Current preview releases are not notarized yet, so the Gatekeeper command in the Launch section may still be required after Homebrew installs the app.
