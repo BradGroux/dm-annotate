@@ -6,6 +6,8 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.4 - 2026-05-11
+
 ### Changed
 
 - Added README and usage guide screenshots for toolbar layouts plus whiteboard and blackboard modes.
