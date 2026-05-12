@@ -9,6 +9,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     private var laserTrail: [TimedPoint] = []
     private var laserTimer: Timer?
     private weak var activeTextField: NSTextField?
+    private var textMove: TextMove?
 
     init(frame: CGRect, store: AnnotationStore, displayID: UInt32) {
         self.store = store
@@ -32,6 +33,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     func syncWithStore() {
         if store.activeTool == .cursor {
             preview = nil
+            textMove = nil
             activeTextField?.removeFromSuperview()
             activeTextField = nil
         }
@@ -83,6 +85,9 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case .arrow:
             preview = AnnotationItem(displayID: displayID, kind: .arrow, points: [point, point], color: store.currentColor, lineWidth: store.strokeWidth)
         case .text:
+            if beginTextMove(at: point) {
+                break
+            }
             beginTextEntry(at: point)
         case .laser:
             appendLaserPoint(point)
@@ -108,7 +113,9 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             store.erase(at: point, radius: max(store.strokeWidth * 3, 14), displayID: displayID)
         case .laser:
             appendLaserPoint(point)
-        case .cursor, .text, .whiteboard, .blackboard:
+        case .text:
+            moveText(to: point)
+        case .cursor, .whiteboard, .blackboard:
             break
         }
 
@@ -116,11 +123,29 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard store.activeTool == .laser else { return }
-        appendLaserPoint(convert(event.locationInWindow, from: nil))
+        let point = convert(event.locationInWindow, from: nil)
+
+        switch store.activeTool {
+        case .laser:
+            appendLaserPoint(point)
+        case .text:
+            textAnnotation(at: point) == nil ? NSCursor.iBeam.set() : NSCursor.openHand.set()
+        default:
+            break
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let textMove {
+            if let updated = store.annotation(id: textMove.original.id) {
+                store.recordMove(from: textMove.original, to: updated)
+            }
+            self.textMove = nil
+            NSCursor.openHand.set()
+            needsDisplay = true
+            return
+        }
+
         guard let finalPreview = preview else { return }
         preview = nil
 
@@ -161,6 +186,46 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         addSubview(field)
         activeTextField = field
         window?.makeFirstResponder(field)
+    }
+
+    private func beginTextMove(at point: CGPoint) -> Bool {
+        activeTextField?.removeFromSuperview()
+        activeTextField = nil
+
+        guard let annotation = textAnnotation(at: point),
+              let origin = annotation.points.first else {
+            return false
+        }
+
+        textMove = TextMove(
+            original: annotation,
+            dragOffset: CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+        )
+        NSCursor.closedHand.set()
+        return true
+    }
+
+    private func moveText(to point: CGPoint) {
+        guard let textMove else { return }
+        var updated = store.annotation(id: textMove.original.id) ?? textMove.original
+        updated.points = [
+            CGPoint(
+                x: point.x - textMove.dragOffset.x,
+                y: point.y - textMove.dragOffset.y
+            )
+        ]
+        store.update(updated)
+        NSCursor.closedHand.set()
+    }
+
+    private func textAnnotation(at point: CGPoint) -> AnnotationItem? {
+        store.annotations
+            .reversed()
+            .first {
+                $0.displayID == displayID &&
+                    $0.kind == .text &&
+                    $0.touches(point, radius: 2)
+            }
     }
 
     private func commitTextField(_ field: NSTextField) {
@@ -248,4 +313,9 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             timer.invalidate()
         }
     }
+}
+
+private struct TextMove {
+    var original: AnnotationItem
+    var dragOffset: CGPoint
 }

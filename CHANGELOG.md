@@ -6,6 +6,15 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.5 - 2026-05-12
+
+### Fixed
+
+- Render screenshot annotations at native display pixel resolution so saved PNGs are sharper on Retina displays.
+- Show a crosshair cursor and guide lines as soon as region screenshot selection starts.
+- Put Undo and Redo first in the toolbar action group, with annotation lock immediately after them.
+- Allow existing text annotations to be dragged with the Text tool, including undo/redo for moves.
+
 ## 0.1.4 - 2026-05-11
 
 ### Changed

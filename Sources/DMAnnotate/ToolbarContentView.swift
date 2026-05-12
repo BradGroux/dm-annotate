@@ -430,14 +430,14 @@ struct ToolbarContentView: View {
     }
 
     @ViewBuilder private var actionButtons: some View {
-        iconButton(store.annotationsLocked ? "lock.fill" : "lock.open", active: store.annotationsLocked, help: store.annotationsLocked ? "Unlock annotations" : "Lock annotations", shortcut: .toggleAnnotationLock) {
-            actions.toggleAnnotationLock()
-        }
         iconButton("arrow.uturn.backward", active: false, enabled: store.canUndo, help: "Undo", shortcut: .undo) {
             store.undo()
         }
         iconButton("arrow.uturn.forward", active: false, enabled: store.canRedo, help: "Redo", shortcut: .redo) {
             store.redo()
+        }
+        iconButton(store.annotationsLocked ? "lock.fill" : "lock.open", active: store.annotationsLocked, help: store.annotationsLocked ? "Unlock annotations" : "Lock annotations", shortcut: .toggleAnnotationLock) {
+            actions.toggleAnnotationLock()
         }
         iconButton(store.isVisible ? "eye" : "eye.slash", active: false, help: "Show or hide annotations", shortcut: .toggleAnnotationVisibility) {
             store.toggleVisibility()

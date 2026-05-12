@@ -86,36 +86,87 @@ final class ScreenshotController {
             return nil
         }
 
-        let fullImage = NSImage(size: screen.frame.size)
-        fullImage.lockFocus()
-
-        NSGraphicsContext.current?.imageInterpolation = .high
-        NSImage(cgImage: cgImage, size: screen.frame.size).draw(in: CGRect(origin: .zero, size: screen.frame.size))
-
-        if store.whiteboardModeEnabled {
-            AnnotationRenderer.drawWhiteboard(in: CGRect(origin: .zero, size: screen.frame.size), background: store.whiteboardBackground)
+        let pointSize = screen.frame.size
+        let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
+        guard let fullImage = renderedImage(cgImage: cgImage, displayID: screen.displayID, pointSize: pointSize, pixelSize: pixelSize) else {
+            return nil
         }
-
-        if store.isVisible {
-            store.annotations
-                .filter { $0.displayID == screen.displayID }
-                .forEach(AnnotationRenderer.draw)
-        }
-
-        fullImage.unlockFocus()
 
         guard let region else { return fullImage }
 
-        let cropped = NSImage(size: region.size)
+        let scaleX = pixelSize.width / pointSize.width
+        let scaleY = pixelSize.height / pointSize.height
+        let pixelRegion = pixelRect(for: region, scaleX: scaleX, scaleY: scaleY, bounds: CGRect(origin: .zero, size: pixelSize))
+        let cropped = NSImage(size: pixelRegion.size)
         cropped.lockFocus()
         fullImage.draw(
-            in: CGRect(origin: .zero, size: region.size),
-            from: region,
+            in: CGRect(origin: .zero, size: pixelRegion.size),
+            from: pixelRegion,
             operation: .copy,
             fraction: 1
         )
         cropped.unlockFocus()
         return cropped
+    }
+
+    private func renderedImage(cgImage: CGImage, displayID: UInt32, pointSize: CGSize, pixelSize: CGSize) -> NSImage? {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(pixelSize.width),
+            pixelsHigh: Int(pixelSize.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ),
+        let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            return nil
+        }
+
+        let previousContext = NSGraphicsContext.current
+        NSGraphicsContext.current = context
+        defer { NSGraphicsContext.current = previousContext }
+
+        let pixelRect = CGRect(origin: .zero, size: pixelSize)
+        NSGraphicsContext.current?.imageInterpolation = .none
+        NSImage(cgImage: cgImage, size: pixelSize).draw(in: pixelRect)
+
+        let scaleX = pixelSize.width / pointSize.width
+        let scaleY = pixelSize.height / pointSize.height
+        context.cgContext.saveGState()
+        context.cgContext.scaleBy(x: scaleX, y: scaleY)
+        drawAnnotations(displayID: displayID, pointSize: pointSize)
+        context.cgContext.restoreGState()
+
+        let image = NSImage(size: pixelSize)
+        image.addRepresentation(bitmap)
+        return image
+    }
+
+    private func drawAnnotations(displayID: UInt32, pointSize: CGSize) {
+        if store.whiteboardModeEnabled {
+            AnnotationRenderer.drawWhiteboard(in: CGRect(origin: .zero, size: pointSize), background: store.whiteboardBackground)
+        }
+
+        guard store.isVisible else { return }
+
+        store.annotations
+            .filter { $0.displayID == displayID }
+            .forEach(AnnotationRenderer.draw)
+    }
+
+    private func pixelRect(for region: CGRect, scaleX: CGFloat, scaleY: CGFloat, bounds: CGRect) -> CGRect {
+        let scaled = CGRect(
+            x: floor(region.minX * scaleX),
+            y: floor(region.minY * scaleY),
+            width: ceil(region.width * scaleX),
+            height: ceil(region.height * scaleY)
+        )
+
+        return scaled.intersection(bounds)
     }
 
     private func save(_ image: NSImage) {
@@ -205,6 +256,7 @@ final class RegionSelectionWindow: NSPanel {
         contentView = view
         isOpaque = false
         backgroundColor = .clear
+        acceptsMouseMovedEvents = true
         hasShadow = false
         level = DMWindowLevels.regionSelection
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -219,6 +271,8 @@ final class RegionSelectionView: NSView {
     private let completion: (CGRect?) -> Void
     private var startPoint: CGPoint?
     private var currentPoint: CGPoint?
+    private var hoverPoint: CGPoint?
+    private var trackingArea: NSTrackingArea?
 
     init(frame: CGRect, completion: @escaping (CGRect?) -> Void) {
         self.completion = completion
@@ -233,29 +287,64 @@ final class RegionSelectionView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var isOpaque: Bool { false }
 
+    override func viewDidMoveToWindow() {
+        window?.acceptsMouseMovedEvents = true
+        if let window {
+            hoverPoint = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+            needsDisplay = true
+        }
+        NSCursor.crosshair.set()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .crosshair)
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let nextTrackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .inVisibleRect, .mouseMoved, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(nextTrackingArea)
+        trackingArea = nextTrackingArea
+        super.updateTrackingAreas()
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.withAlphaComponent(0.22).setFill()
         bounds.fill()
 
+        if let crosshairPoint {
+            drawCrosshair(at: crosshairPoint)
+        }
+
         guard let rect = selectionRect else { return }
 
-        NSColor.clear.setFill()
-        rect.fill(using: .clear)
-
-        let path = NSBezierPath(rect: rect)
-        path.lineWidth = 2
-        NSColor.systemBlue.setStroke()
-        path.stroke()
+        drawSelectionRect(rect)
     }
 
     override func mouseDown(with event: NSEvent) {
         startPoint = convert(event.locationInWindow, from: nil)
         currentPoint = startPoint
+        hoverPoint = currentPoint
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
         currentPoint = convert(event.locationInWindow, from: nil)
+        hoverPoint = currentPoint
+        needsDisplay = true
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        hoverPoint = convert(event.locationInWindow, from: nil)
+        NSCursor.crosshair.set()
         needsDisplay = true
     }
 
@@ -274,6 +363,41 @@ final class RegionSelectionView: NSView {
         }
 
         super.keyDown(with: event)
+    }
+
+    private var crosshairPoint: CGPoint? {
+        currentPoint ?? hoverPoint
+    }
+
+    private func drawCrosshair(at point: CGPoint) {
+        let horizontal = NSBezierPath()
+        horizontal.lineWidth = 1
+        horizontal.move(to: CGPoint(x: bounds.minX, y: point.y))
+        horizontal.line(to: CGPoint(x: bounds.maxX, y: point.y))
+
+        let vertical = NSBezierPath()
+        vertical.lineWidth = 1
+        vertical.move(to: CGPoint(x: point.x, y: bounds.minY))
+        vertical.line(to: CGPoint(x: point.x, y: bounds.maxY))
+
+        NSColor.white.withAlphaComponent(0.72).setStroke()
+        horizontal.stroke()
+        vertical.stroke()
+
+        let accent = NSBezierPath(ovalIn: CGRect(x: point.x - 6, y: point.y - 6, width: 12, height: 12))
+        accent.lineWidth = 1.5
+        NSColor.systemBlue.withAlphaComponent(0.9).setStroke()
+        accent.stroke()
+    }
+
+    private func drawSelectionRect(_ rect: CGRect) {
+        NSColor.clear.setFill()
+        rect.fill(using: .clear)
+
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 2
+        NSColor.systemBlue.setStroke()
+        path.stroke()
     }
 
     private var selectionRect: CGRect? {

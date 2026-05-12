@@ -87,6 +87,24 @@ public final class AnnotationStore: ObservableObject {
         updateHistoryFlags()
     }
 
+    public func annotation(id: AnnotationItem.ID) -> AnnotationItem? {
+        annotations.first { $0.id == id }
+    }
+
+    public func update(_ annotation: AnnotationItem) {
+        guard let index = annotations.firstIndex(where: { $0.id == annotation.id }) else { return }
+        annotations[index] = annotation
+    }
+
+    public func recordMove(from previous: AnnotationItem, to next: AnnotationItem) {
+        guard previous.id == next.id, previous != next else { return }
+
+        update(next)
+        undoStack.append(.update(previous: previous, next: next))
+        redoStack.removeAll()
+        updateHistoryFlags()
+    }
+
     public func erase(at point: CGPoint, radius: CGFloat, displayID: UInt32) {
         let removed = annotations.filter { $0.displayID == displayID && $0.touches(point, radius: radius) }
         guard !removed.isEmpty else { return }
@@ -118,6 +136,8 @@ public final class AnnotationStore: ObservableObject {
             annotations.append(contentsOf: items)
         case .clear(let items):
             annotations = items
+        case .update(let previous, let next):
+            replace(id: next.id, with: previous)
         }
 
         redoStack.append(action)
@@ -135,6 +155,8 @@ public final class AnnotationStore: ObservableObject {
             annotations.removeAll { removedIDs.contains($0.id) }
         case .clear:
             annotations.removeAll()
+        case .update(let previous, let next):
+            replace(id: previous.id, with: next)
         }
 
         undoStack.append(action)
@@ -192,10 +214,16 @@ public final class AnnotationStore: ObservableObject {
         canUndo = !undoStack.isEmpty
         canRedo = !redoStack.isEmpty
     }
+
+    private func replace(id: AnnotationItem.ID, with annotation: AnnotationItem) {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+        annotations[index] = annotation
+    }
 }
 
 private enum HistoryAction {
     case add(AnnotationItem)
     case remove([AnnotationItem])
     case clear([AnnotationItem])
+    case update(previous: AnnotationItem, next: AnnotationItem)
 }

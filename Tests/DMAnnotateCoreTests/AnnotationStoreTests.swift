@@ -214,6 +214,33 @@ import Testing
 }
 
 @MainActor
+@Test func textMoveCanUndoAndRedo() {
+    let store = AnnotationStore()
+    let original = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 10, y: 20)],
+        color: .red,
+        lineWidth: 3,
+        text: "Move me",
+        fontSize: 24
+    )
+    var moved = original
+    moved.points = [CGPoint(x: 80, y: 120)]
+
+    store.add(original)
+    store.recordMove(from: original, to: moved)
+
+    #expect(store.annotation(id: original.id)?.points == moved.points)
+
+    store.undo()
+    #expect(store.annotation(id: original.id)?.points == original.points)
+
+    store.redo()
+    #expect(store.annotation(id: original.id)?.points == moved.points)
+}
+
+@MainActor
 @Test func strokeWidthKeyboardStepsClampToSupportedWidths() {
     let store = AnnotationStore(strokeWidth: 3)
 
