@@ -13,6 +13,7 @@ public enum AnnotationTool: String, CaseIterable, Codable, Hashable, Identifiabl
     case text
     case laser
     case whiteboard
+    case blackboard
 
     public var id: String { rawValue }
 
@@ -29,6 +30,7 @@ public enum AnnotationTool: String, CaseIterable, Codable, Hashable, Identifiabl
         case .text: "Text"
         case .laser: "Laser"
         case .whiteboard: "Whiteboard"
+        case .blackboard: "Blackboard"
         }
     }
 }
@@ -176,6 +178,7 @@ public extension ShortcutAction {
         case .text: .selectText
         case .laser: .selectLaser
         case .whiteboard: .toggleWhiteboard
+        case .blackboard: nil
         }
     }
 }
@@ -208,35 +211,26 @@ public struct RGBAColor: Codable, Equatable, Hashable, Identifiable, Sendable {
     public static let white = RGBAColor(red: 1, green: 1, blue: 1)
     public static let black = RGBAColor(red: 0.02, green: 0.02, blue: 0.025)
 
+    public static let maximumPaletteColorCount = 10
     public static let defaultQuickColors: [RGBAColor] = [.red, .yellow, .green, .blue]
-
-    public static let palette: [RGBAColor] = [
-        .red, .amber, .yellow, .green, .cyan, .blue, .purple, .pink,
-        RGBAColor(red: 0.80, green: 0.06, blue: 0.12),
-        RGBAColor(red: 0.86, green: 0.35, blue: 0.03),
-        RGBAColor(red: 0.93, green: 0.73, blue: 0.08),
-        RGBAColor(red: 0.10, green: 0.55, blue: 0.24),
-        RGBAColor(red: 0.05, green: 0.48, blue: 0.58),
-        RGBAColor(red: 0.10, green: 0.25, blue: 0.75),
-        RGBAColor(red: 0.40, green: 0.20, blue: 0.75),
-        RGBAColor(red: 0.76, green: 0.15, blue: 0.45),
-        RGBAColor(red: 1.00, green: 0.48, blue: 0.48),
-        RGBAColor(red: 1.00, green: 0.74, blue: 0.40),
-        RGBAColor(red: 1.00, green: 0.92, blue: 0.55),
-        RGBAColor(red: 0.47, green: 0.88, blue: 0.58),
-        RGBAColor(red: 0.40, green: 0.86, blue: 0.95),
-        RGBAColor(red: 0.45, green: 0.65, blue: 1.00),
-        RGBAColor(red: 0.68, green: 0.55, blue: 1.00),
-        RGBAColor(red: 1.00, green: 0.55, blue: 0.78),
-        .white,
-        RGBAColor(red: 0.86, green: 0.88, blue: 0.91),
-        RGBAColor(red: 0.64, green: 0.67, blue: 0.72),
-        RGBAColor(red: 0.42, green: 0.45, blue: 0.50),
-        RGBAColor(red: 0.25, green: 0.27, blue: 0.31),
-        RGBAColor(red: 0.14, green: 0.15, blue: 0.18),
-        .black,
-        RGBAColor(red: 0.00, green: 0.00, blue: 0.00, alpha: 0.45)
+    public static let defaultPaletteColors: [RGBAColor] = [
+        .red, .yellow, .green, .blue, .purple,
+        .pink, .cyan, .amber, .white, .black
     ]
+
+    public static let palette: [RGBAColor] = defaultPaletteColors
+}
+
+public struct SavedColorPalette: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var colors: [RGBAColor]
+
+    public init(id: UUID = UUID(), name: String, colors: [RGBAColor]) {
+        self.id = id
+        self.name = name
+        self.colors = Array(colors.prefix(RGBAColor.maximumPaletteColorCount))
+    }
 }
 
 public struct AnnotationItem: Identifiable, Equatable, Sendable {

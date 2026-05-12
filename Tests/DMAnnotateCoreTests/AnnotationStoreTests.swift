@@ -139,8 +139,47 @@ import Testing
 
     #expect(snapshot.toolbarOriginsByDisplayID.isEmpty)
     #expect(!snapshot.highContrastToolbar)
+    #expect(snapshot.toolbarTooltipsEnabled)
+    #expect(snapshot.paletteColors == RGBAColor.defaultPaletteColors)
+    #expect(snapshot.quickColors == Array(RGBAColor.defaultPaletteColors.prefix(4)))
     #expect(!snapshot.revealScreenshotAfterSave)
     #expect(!snapshot.confirmScreenshotFilename)
+}
+
+@Test func paletteColorsSeedFromLegacyQuickColorsAndStayCapped() throws {
+    let json = """
+    {
+      "quickColors": [
+        { "red": 0.1, "green": 0.2, "blue": 0.3, "alpha": 1 },
+        { "red": 0.4, "green": 0.5, "blue": 0.6, "alpha": 1 }
+      ]
+    }
+    """.data(using: .utf8)!
+
+    var snapshot = try JSONDecoder().decode(PreferencesSnapshot.self, from: json)
+
+    #expect(snapshot.paletteColors.count == RGBAColor.maximumPaletteColorCount)
+    #expect(snapshot.quickColors == Array(snapshot.paletteColors.prefix(4)))
+
+    snapshot.appendPaletteColor(.pink)
+    #expect(snapshot.paletteColors.count == RGBAColor.maximumPaletteColorCount)
+
+    snapshot.setPaletteColor(.black, at: 0)
+    #expect(snapshot.quickColors[0] == .black)
+}
+
+@Test func savedPaletteRoundTripReloadsPaletteColors() {
+    var snapshot = PreferencesSnapshot()
+
+    snapshot.setPaletteColor(.black, at: 0)
+    snapshot.saveCurrentPalette()
+    snapshot.setPaletteColor(.white, at: 0)
+
+    let saved = snapshot.savedColorPalettes[0]
+    snapshot.loadPalette(saved)
+
+    #expect(snapshot.paletteColors[0] == .black)
+    #expect(snapshot.quickColors[0] == .black)
 }
 
 @MainActor
@@ -157,6 +196,24 @@ import Testing
 }
 
 @MainActor
+@Test func boardToolsToggleWhiteAndBlackBackgrounds() {
+    let store = AnnotationStore()
+
+    store.setActiveTool(.whiteboard)
+    #expect(store.whiteboardModeEnabled)
+    #expect(store.whiteboardBackground == .white)
+    #expect(store.activeTool == .pen)
+
+    store.setActiveTool(.blackboard)
+    #expect(store.whiteboardModeEnabled)
+    #expect(store.whiteboardBackground == .black)
+    #expect(store.activeTool == .pen)
+
+    store.setActiveTool(.blackboard)
+    #expect(!store.whiteboardModeEnabled)
+}
+
+@MainActor
 @Test func strokeWidthKeyboardStepsClampToSupportedWidths() {
     let store = AnnotationStore(strokeWidth: 3)
 
@@ -164,16 +221,33 @@ import Testing
     #expect(store.strokeWidth == 5)
 
     store.increaseStrokeWidth()
-    #expect(store.strokeWidth == 10)
+    #expect(store.strokeWidth == 8)
 
-    store.increaseStrokeWidth()
-    #expect(store.strokeWidth == 10)
+    for _ in 0..<20 {
+        store.increaseStrokeWidth()
+    }
+    #expect(store.strokeWidth == 64)
 
     store.decreaseStrokeWidth()
-    #expect(store.strokeWidth == 5)
+    #expect(store.strokeWidth == 32)
 
-    store.decreaseStrokeWidth()
-    store.decreaseStrokeWidth()
+    for _ in 0..<20 {
+        store.decreaseStrokeWidth()
+    }
+    #expect(store.strokeWidth == 1)
+}
+
+@MainActor
+@Test func customStrokeWidthIsRoundedAndClamped() {
+    let store = AnnotationStore(strokeWidth: 3)
+
+    store.setStrokeWidth(7.6)
+    #expect(store.strokeWidth == 8)
+
+    store.setStrokeWidth(120)
+    #expect(store.strokeWidth == 64)
+
+    store.setStrokeWidth(-4)
     #expect(store.strokeWidth == 1)
 }
 

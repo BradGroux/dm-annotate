@@ -14,6 +14,7 @@ extension AnnotationTool {
         case .text: "textformat"
         case .laser: "scope"
         case .whiteboard: "rectangle.fill.on.rectangle.fill"
+        case .blackboard: "rectangle.fill"
         }
     }
 }

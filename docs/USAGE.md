@@ -65,19 +65,20 @@ Supported tools:
 - Text
 - Laser pointer
 - Whiteboard
+- Blackboard
 
-Whiteboard mode supports white, black, light grid, and dark grid backgrounds.
+Whiteboard and blackboard controls toggle white and black presentation backgrounds. Settings can still choose light grid or dark grid board backgrounds.
 
 ## Colors and Stroke Width
 
 The toolbar includes:
 
-- Four quick colors.
-- A 32-color palette.
+- A 10-color editable toolbar palette.
 - A custom color swatch that opens the macOS color panel.
-- Stroke widths: `1`, `3`, `5`, and `10` px.
+- Saved palettes that can be reloaded later.
+- Stroke presets from `1` through `64` px plus a custom stroke width entry.
 
-Quick colors and the default color can be changed in Settings.
+The first four palette colors are mapped to Command+1 through Command+4 by default. Palette colors and the default color can be changed in Settings.
 
 ## Screenshots
 
@@ -104,11 +105,13 @@ Settings include:
 - Theme.
 - Toolbar orientation and collapsed state.
 - High contrast toolbar.
+- Toolbar tooltips.
 - Visible tools.
 - Screenshot output and folder.
 - Whiteboard background.
-- Default and quick colors.
+- Default color, toolbar palette, and saved palettes.
 - Keyboard shortcuts with duplicate detection and disable support.
+- Help, version, permission, and diagnostics links.
 
 ## Safe Mode
 

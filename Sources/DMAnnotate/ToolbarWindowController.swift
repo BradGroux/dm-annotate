@@ -5,6 +5,8 @@ import SwiftUI
 
 @MainActor
 final class ToolbarWindowController: NSObject, NSWindowDelegate {
+    private static let actionButtonCount = 8
+
     private let store: AnnotationStore
     private let preferences: PreferencesController
     private let runtimeState: AppRuntimeState
@@ -13,6 +15,9 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private var cancellables: Set<AnyCancellable> = []
     private var lastToolbarOrientation: ToolbarOrientation?
     private var lastToolbarCollapsed: Bool?
+    private var lastVisibleTools: Set<AnnotationTool>?
+    private var lastQuickColorCount: Int?
+    private var suppressMovePersistenceUntil: Date?
 
     init(store: AnnotationStore, preferences: PreferencesController, runtimeState: AppRuntimeState, actions: ToolbarActions) {
         self.store = store
@@ -32,7 +37,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         if panel == nil {
             makePanel()
         }
-        resizeToFit()
+        resizeToFit(using: preferences.snapshot)
         panel?.orderFrontRegardless()
     }
 
@@ -42,6 +47,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
         let originalFrame = panel.frame
         let shifted = originalFrame.offsetBy(dx: 14, dy: 0)
+        suppressMovePersistence(for: 0.35)
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.10
@@ -57,30 +63,59 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     }
 
     func toggleCollapsed() {
-        preferences.update { snapshot in
-            snapshot.toolbarCollapsed.toggle()
-        }
-        show()
+        var next = preferences.snapshot
+        next.toolbarCollapsed.toggle()
+        applyToolbarLayout(next)
+    }
+
+    func expandToolbar() {
+        var next = preferences.snapshot
+        next.toolbarCollapsed = false
+        applyToolbarLayout(next)
     }
 
     func toggleOrientation() {
-        preferences.update { snapshot in
-            snapshot.toolbarOrientation = snapshot.toolbarOrientation == .vertical ? .horizontal : .vertical
-        }
-        show()
+        var next = preferences.snapshot
+        next.toolbarOrientation = next.toolbarOrientation == .vertical ? .horizontal : .vertical
+        next.toolbarCollapsed = false
+        applyToolbarLayout(next)
     }
 
     func resizeToFit() {
-        guard let panel else { return }
+        resizeToFit(using: preferences.snapshot)
+    }
 
-        let size = preferredSize()
-        let screen = screenForToolbar()
-        let origin = toolbarOrigin(for: screen)
-        let frame = clampedFrame(CGRect(origin: origin, size: size))
-        panel.setFrame(frame, display: true)
+    private func resizeToFit(using snapshot: PreferencesSnapshot) {
+        guard panel != nil else { return }
+
+        let size = preferredSize(for: snapshot)
+        let screen = screenForToolbar(using: snapshot)
+        let origin = toolbarOrigin(for: screen, using: snapshot)
+        let frame = clampedFrame(CGRect(origin: origin, size: size), using: snapshot)
+        setPanelFrame(frame)
 
         if frame.origin != origin {
-            saveToolbarOrigin(frame.origin, screen: screen)
+            DispatchQueue.main.async { [weak self] in
+                self?.saveToolbarOrigin(frame.origin, screen: screen)
+            }
+        }
+    }
+
+    private func applyToolbarLayout(_ snapshot: PreferencesSnapshot) {
+        if panel == nil {
+            makePanel()
+        }
+
+        updateLastLayoutState(snapshot)
+        resizeToFit(using: snapshot)
+        preferences.update { current in
+            current = snapshot
+        }
+        panel?.orderFrontRegardless()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.resizeToFit(using: self.preferences.snapshot)
         }
     }
 
@@ -94,7 +129,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
             width: panel.frame.width,
             height: panel.frame.height
         )
-        panel.setFrame(clampedFrame(frame), display: true)
+        setPanelFrame(clampedFrame(frame, using: preferences.snapshot))
         saveToolbarOrigin(panel.frame.origin, screen: screen)
     }
 
@@ -103,17 +138,18 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         let hostingView = NSHostingView(rootView: root)
 
         let panel = ToolbarPanel(
-            contentRect: CGRect(origin: preferences.snapshot.toolbarOrigin, size: preferredSize()),
+            contentRect: CGRect(origin: preferences.snapshot.toolbarOrigin, size: preferredSize(for: preferences.snapshot)),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
 
+        hostingView.autoresizingMask = [.width, .height]
         panel.contentView = hostingView
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .screenSaver
+        panel.level = DMWindowLevels.toolbar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
@@ -121,43 +157,110 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
 
         self.panel = panel
-        lastToolbarOrientation = preferences.snapshot.toolbarOrientation
-        lastToolbarCollapsed = preferences.snapshot.toolbarCollapsed
+        updateLastLayoutState(preferences.snapshot)
     }
 
     private func preferencesDidChange(_ snapshot: PreferencesSnapshot) {
         guard panel != nil else { return }
 
         let layoutChanged = snapshot.toolbarOrientation != lastToolbarOrientation ||
-            snapshot.toolbarCollapsed != lastToolbarCollapsed
+            snapshot.toolbarCollapsed != lastToolbarCollapsed ||
+            snapshot.visibleTools != lastVisibleTools ||
+            snapshot.paletteColors.count != lastQuickColorCount
 
-        lastToolbarOrientation = snapshot.toolbarOrientation
-        lastToolbarCollapsed = snapshot.toolbarCollapsed
+        updateLastLayoutState(snapshot)
 
         if layoutChanged {
-            resizeToFit()
+            resizeToFit(using: snapshot)
         }
     }
 
-    private func preferredSize() -> CGSize {
-        if preferences.snapshot.toolbarCollapsed {
+    private func updateLastLayoutState(_ snapshot: PreferencesSnapshot) {
+        lastToolbarOrientation = snapshot.toolbarOrientation
+        lastToolbarCollapsed = snapshot.toolbarCollapsed
+        lastVisibleTools = snapshot.visibleTools
+        lastQuickColorCount = snapshot.paletteColors.count
+    }
+
+    private func preferredSize(for snapshot: PreferencesSnapshot) -> CGSize {
+        if snapshot.toolbarCollapsed {
             return CGSize(width: 62, height: 42)
         }
 
-        let visibleFrame = screenForToolbar()?.visibleFrame ?? NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
+        let visibleFrame = screenForToolbar(using: snapshot)?.visibleFrame ?? NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
 
-        switch preferences.snapshot.toolbarOrientation {
+        switch snapshot.toolbarOrientation {
         case .vertical:
-            let availableHeight = max(420, visibleFrame.height - 48)
-            let preferredHeight = min(min(max(visibleFrame.height * 0.86, 680), 820), availableHeight)
-            return CGSize(width: 86, height: preferredHeight)
+            let availableHeight = max(42, visibleFrame.height - 24)
+            return CGSize(width: 86, height: min(estimatedVerticalToolbarHeight(for: snapshot), availableHeight))
         case .horizontal:
-            return CGSize(width: min(max(visibleFrame.width - 120, 700), 980), height: 48)
+            let availableWidth = max(700, visibleFrame.width - 24)
+            return CGSize(width: min(estimatedHorizontalToolbarWidth(for: snapshot), availableWidth), height: 48)
         }
     }
 
-    private func clampedFrame(_ frame: CGRect) -> CGRect {
-        let targetScreen = NSScreen.screens.first { $0.visibleFrame.intersects(frame) } ?? screenForToolbar() ?? NSScreen.main
+    private func estimatedVerticalToolbarHeight(for snapshot: PreferencesSnapshot) -> CGFloat {
+        let outerPadding: CGFloat = 12
+        let contentBottomPadding: CGFloat = 6
+        let stackSpacing: CGFloat = 6
+        let dragHandleHeight: CGFloat = 16
+        let dividerHeight: CGFloat = 5
+        let widthControlHeight: CGFloat = 30
+        let childCount = 9
+        let topControls = 2 + statusControlCount()
+        let toolControls = snapshot.visibleTools.count
+        let colorControls = min(snapshot.paletteColors.count, 4) + 2
+
+        return outerPadding +
+            dragHandleHeight +
+            gridHeight(itemCount: topControls, columns: 2) +
+            dividerHeight +
+            gridHeight(itemCount: toolControls, columns: 2) +
+            dividerHeight +
+            gridHeight(itemCount: colorControls, columns: 2) +
+            widthControlHeight +
+            dividerHeight +
+            gridHeight(itemCount: Self.actionButtonCount, columns: 2) +
+            CGFloat(childCount - 1) * stackSpacing +
+            contentBottomPadding
+    }
+
+    private func estimatedHorizontalToolbarWidth(for snapshot: PreferencesSnapshot) -> CGFloat {
+        let buttonWidth: CGFloat = 30
+        let spacing: CGFloat = 6
+        let outerPadding: CGFloat = 12
+        let dragHandleWidth: CGFloat = 16
+        let dividerWidth: CGFloat = 5
+        let strokeWidthControlWidth: CGFloat = 66
+        let fixedButtons = 2
+        let statusButtons = statusControlCount()
+        let toolButtons = snapshot.visibleTools.count
+        let colorButtons = min(snapshot.paletteColors.count, 4) + 2
+        let actionButtons = Self.actionButtonCount
+        let buttonCount = fixedButtons + statusButtons + toolButtons + colorButtons + actionButtons
+        let elementCount = 1 + buttonCount + 3 + 1
+
+        return outerPadding +
+            dragHandleWidth +
+            CGFloat(buttonCount) * buttonWidth +
+            CGFloat(3) * dividerWidth +
+            strokeWidthControlWidth +
+            CGFloat(max(elementCount - 1, 0)) * spacing
+    }
+
+    private func gridHeight(itemCount: Int, columns: Int) -> CGFloat {
+        let rowCount = max(1, Int(ceil(Double(itemCount) / Double(columns))))
+        let buttonHeight: CGFloat = 30
+        let rowSpacing: CGFloat = 6
+        return CGFloat(rowCount) * buttonHeight + CGFloat(max(rowCount - 1, 0)) * rowSpacing
+    }
+
+    private func statusControlCount() -> Int {
+        PermissionSummary.current().needsAttention ? 1 : 0
+    }
+
+    private func clampedFrame(_ frame: CGRect, using snapshot: PreferencesSnapshot) -> CGRect {
+        let targetScreen = NSScreen.screens.first { $0.visibleFrame.intersects(frame) } ?? screenForToolbar(using: snapshot) ?? NSScreen.main
         guard let screen = targetScreen else { return frame }
 
         let visible = screen.visibleFrame
@@ -167,37 +270,68 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         return CGRect(origin: CGPoint(x: x, y: y), size: frame.size)
     }
 
-    private func screenForToolbar() -> NSScreen? {
+    private func screenForToolbar(using snapshot: PreferencesSnapshot) -> NSScreen? {
         if let panelScreen = panel?.screen {
             return panelScreen
         }
 
-        let origin = preferences.snapshot.toolbarOrigin
+        let origin = snapshot.toolbarOrigin
         return NSScreen.screens.first { $0.visibleFrame.contains(origin) } ?? NSScreen.main
     }
 
-    private func toolbarOrigin(for screen: NSScreen?) -> CGPoint {
-        guard let screen else { return preferences.snapshot.toolbarOrigin }
+    private func toolbarOrigin(for screen: NSScreen?, using snapshot: PreferencesSnapshot) -> CGPoint {
+        guard let screen else { return snapshot.toolbarOrigin }
         let key = "\(screen.displayID)"
-        return preferences.snapshot.toolbarOriginsByDisplayID[key] ?? preferences.snapshot.toolbarOrigin
+        return snapshot.toolbarOriginsByDisplayID[key] ?? snapshot.toolbarOrigin
     }
 
     private func saveToolbarOrigin(_ origin: CGPoint, screen: NSScreen?) {
+        let key = screen.map { "\($0.displayID)" }
+        if preferences.snapshot.toolbarOrigin == origin,
+           key.map({ preferences.snapshot.toolbarOriginsByDisplayID[$0] == origin }) ?? true {
+            return
+        }
+
         preferences.update { snapshot in
             snapshot.toolbarOrigin = origin
-            if let screen {
-                snapshot.toolbarOriginsByDisplayID["\(screen.displayID)"] = origin
+            if let key {
+                snapshot.toolbarOriginsByDisplayID[key] = origin
             }
         }
     }
 
     func windowDidMove(_ notification: Notification) {
         guard let panel else { return }
+        guard !isMovePersistenceSuppressed else { return }
         saveToolbarOrigin(panel.frame.origin, screen: panel.screen)
+    }
+
+    private func setPanelFrame(_ frame: CGRect, display: Bool = true, suppressMoveFor interval: TimeInterval = 0.12) {
+        guard let panel else { return }
+
+        suppressMovePersistence(for: interval)
+        panel.setFrame(frame, display: display)
+    }
+
+    private func suppressMovePersistence(for interval: TimeInterval) {
+        suppressMovePersistenceUntil = Date().addingTimeInterval(interval)
+    }
+
+    private var isMovePersistenceSuppressed: Bool {
+        guard let suppressMovePersistenceUntil else { return false }
+        if Date() < suppressMovePersistenceUntil {
+            return true
+        }
+
+        self.suppressMovePersistenceUntil = nil
+        return false
     }
 }
 
 struct ToolbarActions {
+    var toggleToolbarCollapsed: () -> Void
+    var toggleToolbarOrientation: () -> Void
+    var expandToolbar: () -> Void
     var screenshot: () -> Void
     var regionScreenshot: () -> Void
     var copyScreenshot: () -> Void
@@ -205,7 +339,6 @@ struct ToolbarActions {
     var revealLastScreenshot: () -> Void
     var showSettings: () -> Void
     var showPermissions: () -> Void
-    var openCommandPalette: () -> Void
     var toggleAnnotationLock: () -> Void
     var findToolbar: () -> Void
 }

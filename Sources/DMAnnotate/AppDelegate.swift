@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
                 regionScreenshot: { [weak self] in self?.screenshotController.captureRegion() },
                 revealLastScreenshot: { [weak self] in self?.screenshotController.revealLastScreenshot() },
                 showPermissions: { [weak self] in self?.onboardingController.show() },
-                showSettings: { [weak self] in self?.settingsWindowController.show() },
+                showSettings: { [weak self] in self?.settingsWindowController.toggle() },
                 showCommandPalette: { [weak self] in self?.showCommandPalette() },
                 quit: { NSApp.terminate(nil) }
             )
@@ -78,14 +78,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             preferences: preferences,
             runtimeState: runtimeState,
             actions: ToolbarActions(
+                toggleToolbarCollapsed: { [weak self] in self?.toolbarWindowController.toggleCollapsed() },
+                toggleToolbarOrientation: { [weak self] in self?.toolbarWindowController.toggleOrientation() },
+                expandToolbar: { [weak self] in self?.toolbarWindowController.expandToolbar() },
                 screenshot: { [weak self] in self?.screenshotController.captureFullDisplay() },
                 regionScreenshot: { [weak self] in self?.screenshotController.captureRegion() },
                 copyScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .clipboard) },
                 saveScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .file) },
                 revealLastScreenshot: { [weak self] in self?.screenshotController.revealLastScreenshot() },
-                showSettings: { [weak self] in self?.settingsWindowController.show() },
+                showSettings: { [weak self] in self?.settingsWindowController.toggle() },
                 showPermissions: { [weak self] in self?.onboardingController.show() },
-                openCommandPalette: { [weak self] in self?.showCommandPalette() },
                 toggleAnnotationLock: { [weak self] in self?.store.toggleAnnotationLock() },
                 findToolbar: { [weak self] in self?.toolbarWindowController.findToolbar() }
             )
@@ -172,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     }
 
     @objc func showSettings() {
-        settingsWindowController.show()
+        settingsWindowController.toggle()
     }
 
     @objc func showPermissions() {
@@ -212,16 +214,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     }
 
     @objc func showHelp() {
-        let alert = NSAlert()
-        alert.messageText = "Digital Meld Annotate"
-        alert.informativeText = "Use the floating toolbar, menu bar, or Command+K to switch tools, capture screenshots, and manage permissions."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        settingsWindowController.show(section: .help)
     }
 
     private func showCommandPalette() {
-        commandPaletteController.show(commands: commandPaletteCommands())
+        commandPaletteController.toggle(commands: commandPaletteCommands())
     }
 
     private func commandPaletteCommands() -> [CommandPaletteCommand] {
@@ -263,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
                 self?.toolbarWindowController.findToolbar()
             },
             CommandPaletteCommand(title: "Settings", subtitle: "Open app settings", systemImage: "gearshape") { [weak self] in
-                self?.settingsWindowController.show()
+                self?.settingsWindowController.toggle()
             },
             CommandPaletteCommand(title: "Permissions", subtitle: "Open permission onboarding", systemImage: "lock.shield") { [weak self] in
                 self?.onboardingController.show()

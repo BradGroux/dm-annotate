@@ -9,12 +9,15 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
     public var toolbarOriginY: Double
     public var toolbarOriginsByDisplayID: [String: CGPoint]
     public var highContrastToolbar: Bool
+    public var toolbarTooltipsEnabled: Bool
     public var screenshotOutput: ScreenshotOutput
     public var screenshotFolder: String
     public var revealScreenshotAfterSave: Bool
     public var confirmScreenshotFilename: Bool
     public var defaultColor: RGBAColor
     public var quickColors: [RGBAColor]
+    public var paletteColors: [RGBAColor]
+    public var savedColorPalettes: [SavedColorPalette]
     public var visibleTools: Set<AnnotationTool>
     public var shortcuts: [ShortcutAction: String]
     public var whiteboardBackground: WhiteboardBackground
@@ -27,12 +30,15 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         case toolbarOriginY
         case toolbarOriginsByDisplayID
         case highContrastToolbar
+        case toolbarTooltipsEnabled
         case screenshotOutput
         case screenshotFolder
         case revealScreenshotAfterSave
         case confirmScreenshotFilename
         case defaultColor
         case quickColors
+        case paletteColors
+        case savedColorPalettes
         case visibleTools
         case shortcuts
         case whiteboardBackground
@@ -46,12 +52,15 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         toolbarOriginY: Double = 220,
         toolbarOriginsByDisplayID: [String: CGPoint] = [:],
         highContrastToolbar: Bool = false,
+        toolbarTooltipsEnabled: Bool = true,
         screenshotOutput: ScreenshotOutput = .file,
         screenshotFolder: String = "~/Downloads",
         revealScreenshotAfterSave: Bool = false,
         confirmScreenshotFilename: Bool = false,
         defaultColor: RGBAColor = .red,
         quickColors: [RGBAColor] = RGBAColor.defaultQuickColors,
+        paletteColors: [RGBAColor] = [],
+        savedColorPalettes: [SavedColorPalette] = [],
         visibleTools: Set<AnnotationTool> = Set(AnnotationTool.allCases),
         shortcuts: [ShortcutAction: String] = ShortcutAction.defaultShortcuts,
         whiteboardBackground: WhiteboardBackground = .white
@@ -63,22 +72,28 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         self.toolbarOriginY = toolbarOriginY
         self.toolbarOriginsByDisplayID = toolbarOriginsByDisplayID
         self.highContrastToolbar = highContrastToolbar
+        self.toolbarTooltipsEnabled = toolbarTooltipsEnabled
         self.screenshotOutput = screenshotOutput
         self.screenshotFolder = screenshotFolder
         self.revealScreenshotAfterSave = revealScreenshotAfterSave
         self.confirmScreenshotFilename = confirmScreenshotFilename
         self.defaultColor = defaultColor
-        self.quickColors = Array(quickColors.prefix(4))
-        while self.quickColors.count < 4 {
-            self.quickColors.append(.red)
+        self.paletteColors = paletteColors.isEmpty ? Self.paletteSeed(quickColors: quickColors) : Self.normalizedPaletteColors(paletteColors)
+        self.quickColors = Array(self.paletteColors.prefix(4))
+        self.savedColorPalettes = savedColorPalettes.map { palette in
+            SavedColorPalette(id: palette.id, name: palette.name, colors: Self.normalizedPaletteColors(palette.colors))
         }
-        self.visibleTools = visibleTools
+        self.visibleTools = Self.normalizedVisibleTools(visibleTools)
         self.shortcuts = shortcuts.mapValues(ShortcutText.normalize)
         self.whiteboardBackground = whiteboardBackground
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let quickColors = try container.decodeIfPresent([RGBAColor].self, forKey: .quickColors) ?? RGBAColor.defaultQuickColors
+        let paletteColors = try container.decodeIfPresent([RGBAColor].self, forKey: .paletteColors)
+            ?? Self.paletteSeed(quickColors: quickColors)
+
         self.init(
             theme: try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system,
             toolbarOrientation: try container.decodeIfPresent(ToolbarOrientation.self, forKey: .toolbarOrientation) ?? .vertical,
@@ -87,12 +102,15 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
             toolbarOriginY: try container.decodeIfPresent(Double.self, forKey: .toolbarOriginY) ?? 220,
             toolbarOriginsByDisplayID: try container.decodeIfPresent([String: CGPoint].self, forKey: .toolbarOriginsByDisplayID) ?? [:],
             highContrastToolbar: try container.decodeIfPresent(Bool.self, forKey: .highContrastToolbar) ?? false,
+            toolbarTooltipsEnabled: try container.decodeIfPresent(Bool.self, forKey: .toolbarTooltipsEnabled) ?? true,
             screenshotOutput: try container.decodeIfPresent(ScreenshotOutput.self, forKey: .screenshotOutput) ?? .file,
             screenshotFolder: try container.decodeIfPresent(String.self, forKey: .screenshotFolder) ?? "~/Downloads",
             revealScreenshotAfterSave: try container.decodeIfPresent(Bool.self, forKey: .revealScreenshotAfterSave) ?? false,
             confirmScreenshotFilename: try container.decodeIfPresent(Bool.self, forKey: .confirmScreenshotFilename) ?? false,
             defaultColor: try container.decodeIfPresent(RGBAColor.self, forKey: .defaultColor) ?? .red,
-            quickColors: try container.decodeIfPresent([RGBAColor].self, forKey: .quickColors) ?? RGBAColor.defaultQuickColors,
+            quickColors: quickColors,
+            paletteColors: paletteColors,
+            savedColorPalettes: try container.decodeIfPresent([SavedColorPalette].self, forKey: .savedColorPalettes) ?? [],
             visibleTools: try container.decodeIfPresent(Set<AnnotationTool>.self, forKey: .visibleTools) ?? Set(AnnotationTool.allCases),
             shortcuts: try container.decodeIfPresent([ShortcutAction: String].self, forKey: .shortcuts) ?? ShortcutAction.defaultShortcuts,
             whiteboardBackground: try container.decodeIfPresent(WhiteboardBackground.self, forKey: .whiteboardBackground) ?? .white
@@ -105,6 +123,73 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
             toolbarOriginX = newValue.x
             toolbarOriginY = newValue.y
         }
+    }
+
+    public static func normalizedPaletteColors(_ colors: [RGBAColor]) -> [RGBAColor] {
+        let normalized = Array(colors.prefix(RGBAColor.maximumPaletteColorCount))
+        return normalized.isEmpty ? RGBAColor.defaultPaletteColors : normalized
+    }
+
+    public static func paletteSeed(quickColors: [RGBAColor]) -> [RGBAColor] {
+        var colors = Array(quickColors.prefix(4))
+
+        for color in RGBAColor.defaultPaletteColors where colors.count < RGBAColor.maximumPaletteColorCount && !colors.contains(color) {
+            colors.append(color)
+        }
+
+        return normalizedPaletteColors(colors)
+    }
+
+    public static func normalizedVisibleTools(_ tools: Set<AnnotationTool>) -> Set<AnnotationTool> {
+        var normalized = tools
+        if normalized.contains(.whiteboard), !normalized.contains(.blackboard) {
+            normalized.insert(.blackboard)
+        }
+        return normalized
+    }
+
+    public mutating func setPaletteColor(_ color: RGBAColor, at index: Int) {
+        guard paletteColors.indices.contains(index) else { return }
+
+        paletteColors[index] = color
+        syncQuickColors()
+    }
+
+    @discardableResult
+    public mutating func appendPaletteColor(_ color: RGBAColor) -> Bool {
+        guard paletteColors.count < RGBAColor.maximumPaletteColorCount else { return false }
+
+        paletteColors.append(color)
+        syncQuickColors()
+        return true
+    }
+
+    public mutating func removePaletteColor(at index: Int) {
+        guard paletteColors.count > 1, paletteColors.indices.contains(index) else { return }
+
+        paletteColors.remove(at: index)
+        syncQuickColors()
+    }
+
+    public mutating func saveCurrentPalette() {
+        let colors = Self.normalizedPaletteColors(paletteColors)
+        guard !savedColorPalettes.contains(where: { $0.colors == colors }) else { return }
+
+        savedColorPalettes.append(
+            SavedColorPalette(
+                name: "Palette \(savedColorPalettes.count + 1)",
+                colors: colors
+            )
+        )
+    }
+
+    public mutating func loadPalette(_ palette: SavedColorPalette) {
+        paletteColors = Self.normalizedPaletteColors(palette.colors)
+        syncQuickColors()
+    }
+
+    private mutating func syncQuickColors() {
+        quickColors = Array(paletteColors.prefix(4))
     }
 }
 

@@ -19,7 +19,7 @@ final class SettingsWindowController {
 
     func show() {
         if window == nil {
-            makeWindow()
+            makeWindow(initialSection: .general)
         }
 
         window?.center()
@@ -27,11 +27,30 @@ final class SettingsWindowController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func makeWindow() {
-        let root = SettingsView(store: store, preferences: preferences, shortcutController: shortcutController, runtimeState: runtimeState)
-        let hostingView = NSHostingView(rootView: root)
+    func show(section: SettingsSection) {
+        if window == nil {
+            makeWindow(initialSection: section)
+        } else {
+            setRootView(initialSection: section)
+        }
+
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func toggle() {
+        if window?.isVisible == true {
+            window?.orderOut(nil)
+        } else {
+            show()
+        }
+    }
+
+    private func makeWindow(initialSection: SettingsSection) {
+        let hostingView = NSHostingView(rootView: settingsView(initialSection: initialSection))
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 760, height: 620),
+            contentRect: CGRect(x: 0, y: 0, width: 920, height: 640),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -41,5 +60,19 @@ final class SettingsWindowController {
         window.contentView = hostingView
         window.isReleasedWhenClosed = false
         self.window = window
+    }
+
+    private func setRootView(initialSection: SettingsSection) {
+        window?.contentView = NSHostingView(rootView: settingsView(initialSection: initialSection))
+    }
+
+    private func settingsView(initialSection: SettingsSection) -> SettingsView {
+        SettingsView(
+            store: store,
+            preferences: preferences,
+            shortcutController: shortcutController,
+            runtimeState: runtimeState,
+            initialSection: initialSection
+        )
     }
 }

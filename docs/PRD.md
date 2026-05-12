@@ -19,14 +19,14 @@ The app lets users draw over any Mac app, keep annotations visible during screen
 - Menu bar app with draggable floating toolbar.
 - Transparent always-on-top annotation overlay across active displays.
 - Cursor/click-through mode.
-- Freehand pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, and whiteboard mode.
+- Freehand pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, whiteboard, and blackboard modes.
 - Annotation lock and reliable escape/recovery controls.
 - Command palette for keyboard-first tools and actions.
 - Undo, redo, clear all, and show/hide annotations.
-- Color palette, four quick colors, default color, and stroke widths: `1`, `3`, `5`, `10` px.
+- Editable 10-color palette, first-four quick color shortcuts, saved palette reload, default color, stroke width presets, and custom stroke width entry.
 - Full-display and region screenshots, copied to clipboard or saved as timestamped PNG, with copy/save/reveal controls.
 - Customizable shortcuts with conflict detection and disable support.
-- Settings for theme, toolbar orientation, high contrast, visible tools, screenshot destination, colors, and shortcuts.
+- Settings for theme, toolbar orientation, high contrast, toolbar tooltips, visible tools, screenshot destination, colors, and shortcuts.
 - Permission warning in the toolbar, diagnostics view, Safe Mode launch, and abnormal-exit recovery.
 - MIT `LICENSE`, contributor-friendly `README.md`, and clear privacy statement.
 

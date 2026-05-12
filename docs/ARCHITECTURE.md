@@ -20,7 +20,7 @@ Tests/
 | `OverlayController` | Creates transparent overlay windows for active displays |
 | `OverlayView` | Pointer input, drawing interaction, text entry |
 | `AnnotationStore` | In-memory annotation state, tools, undo/redo, visibility, lock |
-| `AnnotationRenderer` | AppKit drawing for strokes, shapes, text, laser, whiteboard |
+| `AnnotationRenderer` | AppKit drawing for strokes, shapes, text, laser, whiteboard/blackboard backgrounds |
 | `ToolbarWindowController` | Floating always-on-top toolbar panel |
 | `ToolbarContentView` | SwiftUI toolbar controls and hover help |
 | `ShortcutController` | Local/global shortcut monitors and emergency escape handling |

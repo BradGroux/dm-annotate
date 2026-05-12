@@ -192,8 +192,8 @@ final class ShortcutController {
     }
 
     private func setQuickColor(at index: Int) {
-        guard preferences.snapshot.quickColors.indices.contains(index) else { return }
-        store.setQuickColor(preferences.snapshot.quickColors[index])
+        guard preferences.snapshot.paletteColors.indices.contains(index) else { return }
+        store.setQuickColor(preferences.snapshot.paletteColors[index])
     }
 }
 

@@ -19,6 +19,14 @@ final class CommandPaletteController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func toggle(commands: [CommandPaletteCommand]) {
+        if panel?.isVisible == true {
+            panel?.orderOut(nil)
+        } else {
+            show(commands: commands)
+        }
+    }
+
     private func makePanel(commands: [CommandPaletteCommand]) {
         let view = CommandPaletteView(commands: commands) { [weak self] in
             self?.panel?.close()

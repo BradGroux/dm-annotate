@@ -4,6 +4,10 @@ import Foundation
 
 @MainActor
 public final class AnnotationStore: ObservableObject {
+    public static let supportedStrokeWidths: [CGFloat] = [1, 2, 3, 5, 8, 10, 12, 16, 20, 24, 32, 64]
+    public static let minimumStrokeWidth: CGFloat = 1
+    public static let maximumStrokeWidth: CGFloat = 64
+
     @Published public private(set) var annotations: [AnnotationItem]
     @Published public var activeTool: AnnotationTool
     @Published public var currentColor: RGBAColor
@@ -31,7 +35,7 @@ public final class AnnotationStore: ObservableObject {
         self.annotations = annotations
         self.activeTool = activeTool
         self.currentColor = currentColor
-        self.strokeWidth = strokeWidth
+        self.strokeWidth = Self.normalizedStrokeWidth(strokeWidth)
         self.isVisible = isVisible
         self.annotationsLocked = annotationsLocked
         self.whiteboardModeEnabled = whiteboardModeEnabled
@@ -43,15 +47,16 @@ public final class AnnotationStore: ObservableObject {
     }
 
     public func setActiveTool(_ tool: AnnotationTool) {
-        if tool == .whiteboard {
-            whiteboardModeEnabled.toggle()
-            if whiteboardModeEnabled, activeTool == .cursor {
-                activeTool = .pen
-            }
+        switch tool {
+        case .whiteboard:
+            toggleBoard(background: .white)
             return
+        case .blackboard:
+            toggleBoard(background: .black)
+            return
+        default:
+            activeTool = tool
         }
-
-        activeTool = tool
     }
 
     public func decreaseStrokeWidth() {
@@ -60,6 +65,19 @@ public final class AnnotationStore: ObservableObject {
 
     public func increaseStrokeWidth() {
         setStrokeWidth(relativeOffset: 1)
+    }
+
+    public func setStrokeWidth(_ width: CGFloat) {
+        strokeWidth = Self.normalizedStrokeWidth(width)
+    }
+
+    public static func normalizedStrokeWidth(_ width: CGFloat) -> CGFloat {
+        guard width.isFinite else { return minimumStrokeWidth }
+
+        return Swift.min(
+            Swift.max(width.rounded(.toNearestOrAwayFromZero), minimumStrokeWidth),
+            maximumStrokeWidth
+        )
     }
 
     public func add(_ annotation: AnnotationItem) {
@@ -145,16 +163,29 @@ public final class AnnotationStore: ObservableObject {
     }
 
     private func setStrokeWidth(relativeOffset: Int) {
-        let widths: [CGFloat] = [1, 3, 5, 10]
+        let widths = Self.supportedStrokeWidths
         let currentIndex = widths.firstIndex(of: strokeWidth) ?? nearestStrokeWidthIndex(in: widths)
         let nextIndex = min(max(currentIndex + relativeOffset, widths.startIndex), widths.index(before: widths.endIndex))
-        strokeWidth = widths[nextIndex]
+        setStrokeWidth(widths[nextIndex])
     }
 
     private func nearestStrokeWidthIndex(in widths: [CGFloat]) -> Int {
         widths.enumerated().min { lhs, rhs in
             abs(lhs.element - strokeWidth) < abs(rhs.element - strokeWidth)
         }?.offset ?? 1
+    }
+
+    private func toggleBoard(background: WhiteboardBackground) {
+        if whiteboardModeEnabled, whiteboardBackground == background {
+            whiteboardModeEnabled = false
+            return
+        }
+
+        whiteboardBackground = background
+        whiteboardModeEnabled = true
+        if activeTool == .cursor {
+            activeTool = .pen
+        }
     }
 
     private func updateHistoryFlags() {

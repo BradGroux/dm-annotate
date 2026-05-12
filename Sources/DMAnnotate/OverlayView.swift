@@ -86,8 +86,8 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             beginTextEntry(at: point)
         case .laser:
             appendLaserPoint(point)
-        case .whiteboard:
-            store.setActiveTool(.whiteboard)
+        case .whiteboard, .blackboard:
+            break
         }
 
         needsDisplay = true
@@ -108,7 +108,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             store.erase(at: point, radius: max(store.strokeWidth * 3, 14), displayID: displayID)
         case .laser:
             appendLaserPoint(point)
-        case .cursor, .text, .whiteboard:
+        case .cursor, .text, .whiteboard, .blackboard:
             break
         }
 

@@ -111,9 +111,8 @@ final class PreferencesController: ObservableObject {
             migrated.shortcuts[action] = ShortcutAction.defaultShortcuts[action] ?? ""
         }
 
-        if migrated.quickColors.count < 4 {
-            migrated.quickColors = Array((migrated.quickColors + RGBAColor.defaultQuickColors).prefix(4))
-        }
+        migrated.paletteColors = PreferencesSnapshot.normalizedPaletteColors(migrated.paletteColors)
+        migrated.quickColors = Array(migrated.paletteColors.prefix(4))
 
         return migrated
     }

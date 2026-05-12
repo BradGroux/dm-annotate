@@ -5,10 +5,16 @@ import DMAnnotateCore
 final class ToolbarColorPanelController: NSObject {
     static let shared = ToolbarColorPanelController()
 
-    private weak var store: AnnotationStore?
+    private var onChange: ((RGBAColor) -> Void)?
 
     func show(currentColor: RGBAColor, store: AnnotationStore) {
-        self.store = store
+        show(currentColor: currentColor) { color in
+            store.currentColor = color
+        }
+    }
+
+    func show(currentColor: RGBAColor, onChange: @escaping (RGBAColor) -> Void) {
+        self.onChange = onChange
 
         let panel = NSColorPanel.shared
         panel.showsAlpha = true
@@ -20,7 +26,7 @@ final class ToolbarColorPanelController: NSObject {
     }
 
     @objc private func colorDidChange(_ sender: NSColorPanel) {
-        store?.currentColor = RGBAColor(sender.color)
+        onChange?(RGBAColor(sender.color))
     }
 }
 

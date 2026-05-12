@@ -14,14 +14,14 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 - Floating toolbar with vertical/horizontal layouts, collapse, drag positioning, and find pulse
 - Per-display toolbar position memory
 - Cyan drawing-mode indicator when screen controls are active
-- Pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, and whiteboard mode
+- Pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, whiteboard, and blackboard modes
 - Annotation lock to prevent accidental edits during presentations
 - Tool shortcuts, shortcut tooltips, and click-to-record shortcut customization
 - Command palette for keyboard-first access to tools and actions
 - Undo, redo, clear all, and show/hide annotations
-- Quick colors, 32-color palette, custom color picker, default color, and stroke widths: `1`, `3`, `5`, `10` px
+- 10-color editable palette, saved/reloadable palettes, custom color picker, default color, and stroke widths from `1` through `64` px with custom entry
 - Full-display and region screenshots to clipboard or timestamped PNG files, with copy/save/reveal options
-- Local settings for theme, toolbar, visible tools, screenshot destination, colors, and shortcuts
+- Local settings for theme, toolbar, tooltips, visible tools, screenshot destination, colors, and shortcuts
 - Permission warning in the toolbar when Screen Recording or Accessibility is missing
 - Diagnostics view for local issue triage
 - Global/local shortcut handling with duplicate shortcut warnings
