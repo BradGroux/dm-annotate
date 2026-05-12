@@ -29,3 +29,15 @@ jobs:
           plutil -lint Packaging/Info.plist
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
+
+      - name: Validate Homebrew cask
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+        run: |
+          brew style Casks/dm-annotate.rb
+          trap 'brew untap BradGroux/dm-annotate >/dev/null 2>&1 || true' EXIT
+          brew untap BradGroux/dm-annotate >/dev/null 2>&1 || true
+          brew tap BradGroux/dm-annotate "$PWD"
+          brew audit --cask --strict --online bradgroux/dm-annotate/dm-annotate
+          brew install --cask --dry-run bradgroux/dm-annotate/dm-annotate

@@ -82,6 +82,24 @@ The first-run onboarding window checks these permissions and links to the releva
 >
 > Only do this for builds you trust. See [Opening developer preview builds](docs/RELEASE.md#opening-developer-preview-builds).
 
+## Install with Homebrew
+
+The repository includes a Homebrew Cask for the current GitHub release:
+
+```sh
+brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
+brew install --cask bradgroux/dm-annotate/dm-annotate
+```
+
+Until releases are Developer ID signed and notarized, Homebrew installs may still need the Gatekeeper preview step above before first launch.
+
+The long tap name is temporary. Once a dedicated `BradGroux/homebrew-tap` repo exists, the intended install path is:
+
+```sh
+brew tap BradGroux/tap
+brew install --cask dm-annotate
+```
+
 ## Clone
 
 ```sh
