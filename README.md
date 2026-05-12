@@ -6,6 +6,20 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 
 > Status: early public release. Core annotation, screenshot, shortcut, settings, and permission flows are implemented, but signed/notarized distribution is still a maintainer release step.
 
+## Preview
+
+<p align="center">
+  <img src="docs/assets/screenshots/toolbar-dark-horizontal.png" alt="Digital Meld Annotate dark horizontal toolbar" width="900">
+</p>
+
+| Light toolbar | Dark toolbar |
+| --- | --- |
+| <img src="docs/assets/screenshots/toolbar-light-horizontal.png" alt="Digital Meld Annotate light horizontal toolbar"> | <img src="docs/assets/screenshots/toolbar-dark-horizontal.png" alt="Digital Meld Annotate dark horizontal toolbar"> |
+
+| Whiteboard | Blackboard |
+| --- | --- |
+| <img src="docs/assets/screenshots/whiteboard.png" alt="Digital Meld Annotate whiteboard mode"> | <img src="docs/assets/screenshots/blackboard.png" alt="Digital Meld Annotate blackboard mode"> |
+
 ## Features
 
 - Always-on-top transparent annotation overlay across active displays

@@ -130,7 +130,7 @@ struct ToolbarContentView: View {
     private var dragBar: some View {
         ZStack {
             Capsule()
-                .fill(preferences.snapshot.highContrastToolbar ? Color.primary.opacity(0.38) : Color.white.opacity(0.32))
+                .fill(dragHandleColor)
                 .frame(width: preferences.snapshot.toolbarOrientation == .vertical ? 42 : 8, height: preferences.snapshot.toolbarOrientation == .vertical ? 5 : 28)
             WindowDragHandle()
         }
@@ -143,7 +143,7 @@ struct ToolbarContentView: View {
     private var collapsedDragBar: some View {
         ZStack {
             Capsule()
-                .fill(preferences.snapshot.highContrastToolbar ? Color.primary.opacity(0.42) : Color.white.opacity(0.34))
+                .fill(collapsedDragHandleColor)
                 .frame(width: 10, height: 28)
             WindowDragHandle()
         }
@@ -689,6 +689,14 @@ struct ToolbarContentView: View {
             return store.isControllingScreen ? .cyan : .primary.opacity(0.55)
         }
         return store.isControllingScreen ? .cyan : .white.opacity(0.18)
+    }
+
+    private var dragHandleColor: Color {
+        Color.primary.opacity(preferences.snapshot.highContrastToolbar ? 0.38 : 0.30)
+    }
+
+    private var collapsedDragHandleColor: Color {
+        Color.primary.opacity(preferences.snapshot.highContrastToolbar ? 0.42 : 0.32)
     }
 
     private func toolbarButtonStyle(active: Bool) -> ToolbarIconButtonStyle {

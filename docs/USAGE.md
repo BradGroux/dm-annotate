@@ -42,6 +42,16 @@ The floating toolbar supports:
 
 Collapsed mode intentionally shows only the drag grip and expand button.
 
+### Toolbar Layouts
+
+| Light horizontal | Dark horizontal |
+| --- | --- |
+| <img src="assets/screenshots/toolbar-light-horizontal.png" alt="Light horizontal toolbar"> | <img src="assets/screenshots/toolbar-dark-horizontal.png" alt="Dark horizontal toolbar"> |
+
+| Light vertical | Dark vertical |
+| --- | --- |
+| <img src="assets/screenshots/toolbar-light-vertical.png" alt="Light vertical toolbar" width="140"> | <img src="assets/screenshots/toolbar-dark-vertical.png" alt="Dark vertical toolbar" width="140"> |
+
 ## Drawing and Click-through
 
 - Cursor mode passes pointer events through to apps underneath.
@@ -68,6 +78,10 @@ Supported tools:
 - Blackboard
 
 Whiteboard and blackboard controls toggle white and black presentation backgrounds. Settings can still choose light grid or dark grid board backgrounds.
+
+| Whiteboard | Blackboard |
+| --- | --- |
+| <img src="assets/screenshots/whiteboard.png" alt="Whiteboard mode"> | <img src="assets/screenshots/blackboard.png" alt="Blackboard mode"> |
 
 ## Colors and Stroke Width
 

@@ -6,6 +6,11 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Changed
+
+- Added README and usage guide screenshots for toolbar layouts plus whiteboard and blackboard modes.
+- Made the toolbar drag grip use adaptive gray so it remains visible in light mode.
+
 ## 0.1.3 - 2026-05-11
 
 ### Changed
