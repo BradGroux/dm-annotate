@@ -93,50 +93,62 @@ The notarization profile should be created with `xcrun notarytool store-credenti
 
 ## Homebrew Cask
 
-The project-owned cask lives at:
+The public Homebrew tap lives at:
 
 ```text
-Casks/dm-annotate.rb
+github.com/BradGroux/homebrew-tap
 ```
 
-After publishing a new GitHub Release, update the cask version and SHA256 to match the release zip:
+The installable cask path in that repo is:
+
+```text
+BradGroux/homebrew-tap/Casks/dm-annotate.rb
+```
+
+This repository also keeps a mirror cask at:
+
+```text
+dm-annotate/Casks/dm-annotate.rb
+```
+
+After publishing a new GitHub Release, update both cask files with the release version and SHA256:
 
 ```sh
 VERSION="0.1.7"
 tmpdir="$(mktemp -d)"
 gh release download "v${VERSION}" \
+  --repo BradGroux/dm-annotate \
   --pattern "dm-annotate-${VERSION}-macos.zip" \
   --dir "${tmpdir}"
 shasum -a 256 "${tmpdir}/dm-annotate-${VERSION}-macos.zip"
 rm -rf "${tmpdir}"
 ```
 
-Validate the cask before merging release docs:
+Validate the public tap before updating install docs:
 
 ```sh
-brew style Casks/dm-annotate.rb
 export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"
-brew untap BradGroux/dm-annotate >/dev/null 2>&1 || true
-brew tap BradGroux/dm-annotate "$(pwd)"
-brew audit --cask --strict --online bradgroux/dm-annotate/dm-annotate
-brew install --cask --dry-run bradgroux/dm-annotate/dm-annotate
-brew untap BradGroux/dm-annotate
+brew untap BradGroux/tap >/dev/null 2>&1 || true
+brew tap BradGroux/tap
+brew audit --cask --strict --online dm-annotate
+brew install --cask --dry-run dm-annotate
+brew untap BradGroux/tap
 ```
 
-The CI workflow runs the same tap audit and dry-run install against committed cask changes.
+The CI workflow in this repo validates the mirrored cask against committed changes.
 
 Current install path:
 
 ```sh
-brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
-brew install --cask bradgroux/dm-annotate/dm-annotate
-```
-
-Once a dedicated `BradGroux/homebrew-tap` repository exists, sync `Casks/dm-annotate.rb` there and document the shorter path:
-
-```sh
 brew tap BradGroux/tap
 brew install --cask dm-annotate
+```
+
+Fallback direct tap path:
+
+```sh
+brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
+brew install --cask bradgroux/dm-annotate/dm-annotate
 ```
 
 ## Automated GitHub releases

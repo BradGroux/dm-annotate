@@ -9,6 +9,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 ### Added
 
 - Added a Homebrew Cask definition and installation documentation.
+- Added the dedicated `BradGroux/tap` Homebrew install path to the docs.
 
 ## 0.1.7 - 2026-05-12
 
