@@ -233,6 +233,26 @@ public struct SavedColorPalette: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+public enum TextFontWeight: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
+    case regular
+    case medium
+    case semibold
+    case bold
+    case heavy
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .regular: "Regular"
+        case .medium: "Medium"
+        case .semibold: "Semibold"
+        case .bold: "Bold"
+        case .heavy: "Heavy"
+        }
+    }
+}
+
 public struct AnnotationItem: Identifiable, Equatable, Sendable {
     public var id: UUID
     public var displayID: UInt32
@@ -242,6 +262,7 @@ public struct AnnotationItem: Identifiable, Equatable, Sendable {
     public var lineWidth: CGFloat
     public var text: String
     public var fontSize: CGFloat
+    public var fontWeight: TextFontWeight
 
     public init(
         id: UUID = UUID(),
@@ -251,7 +272,8 @@ public struct AnnotationItem: Identifiable, Equatable, Sendable {
         color: RGBAColor,
         lineWidth: CGFloat,
         text: String = "",
-        fontSize: CGFloat = 24
+        fontSize: CGFloat = 24,
+        fontWeight: TextFontWeight = .semibold
     ) {
         self.id = id
         self.displayID = displayID
@@ -261,6 +283,7 @@ public struct AnnotationItem: Identifiable, Equatable, Sendable {
         self.lineWidth = lineWidth
         self.text = text
         self.fontSize = fontSize
+        self.fontWeight = fontWeight
     }
 
     public var boundingRect: CGRect {
@@ -271,8 +294,11 @@ public struct AnnotationItem: Identifiable, Equatable, Sendable {
             return points.boundingRect.expanded(by: max(lineWidth, 8))
         case .text:
             guard let point = points.first else { return .zero }
-            let width = max(CGFloat(text.count) * fontSize * 0.6, 64)
-            let height = fontSize * 1.4
+            let lines = text.components(separatedBy: .newlines)
+            let longestLineCount = lines.map(\.count).max() ?? text.count
+            let width = max(CGFloat(longestLineCount) * fontSize * 0.62, 64)
+            let lineCount = max(lines.count, 1)
+            let height = CGFloat(lineCount) * fontSize * 1.3
             return CGRect(x: point.x, y: point.y, width: width, height: height)
                 .expanded(by: 8)
         }

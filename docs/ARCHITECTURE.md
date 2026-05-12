@@ -38,7 +38,7 @@ Annotations are stored in memory as typed values:
 - Rectangle
 - Ellipse
 - Arrow
-- Text
+- Text with content, font size, font weight, and color
 
 The app does not persist annotation sessions in V1. Exiting clears annotations.
 
@@ -82,6 +82,7 @@ Core behavior should stay testable in `DMAnnotateCore` without launching a macOS
 - Shortcut normalization.
 - Preference migration.
 - Screenshot naming.
+- Text move and text style normalization.
 - Safe exit state.
 
 Manual checks are still required for:

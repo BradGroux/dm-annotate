@@ -2,14 +2,17 @@ import AppKit
 import Combine
 import DMAnnotateCore
 
-final class OverlayView: NSView, NSTextFieldDelegate {
+final class OverlayView: NSView, NSTextViewDelegate {
     private let store: AnnotationStore
     private let displayID: UInt32
     private var preview: AnnotationItem?
     private var laserTrail: [TimedPoint] = []
     private var laserTimer: Timer?
-    private weak var activeTextField: NSTextField?
+    private weak var activeTextView: NSTextView?
     private var textMove: TextMove?
+
+    private let minimumTextEditorSize = CGSize(width: 220, height: 38)
+    private let maximumTextEditorHeight: CGFloat = 280
 
     init(frame: CGRect, store: AnnotationStore, displayID: UInt32) {
         self.store = store
@@ -34,8 +37,8 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         if store.activeTool == .cursor {
             preview = nil
             textMove = nil
-            activeTextField?.removeFromSuperview()
-            activeTextField = nil
+            activeTextView?.removeFromSuperview()
+            activeTextView = nil
         }
         needsDisplay = true
     }
@@ -61,6 +64,12 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+
+        if let activeTextView, store.activeTool == .text {
+            commitTextView(activeTextView)
+            needsDisplay = true
+            return
+        }
 
         guard !store.annotationsLocked || store.activeTool == .laser else {
             NSSound.beep()
@@ -172,26 +181,47 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func beginTextEntry(at point: CGPoint) {
-        activeTextField?.removeFromSuperview()
+        activeTextView?.removeFromSuperview()
 
-        let field = NSTextField(frame: CGRect(x: point.x, y: point.y, width: 280, height: 34))
-        field.font = .systemFont(ofSize: 24, weight: .semibold)
-        field.textColor = NSColor(store.currentColor)
-        field.backgroundColor = NSColor.black.withAlphaComponent(0.18)
-        field.drawsBackground = true
-        field.isBordered = true
-        field.focusRingType = .default
-        field.placeholderString = "Text"
-        field.delegate = self
-        addSubview(field)
-        activeTextField = field
-        window?.makeFirstResponder(field)
+        let textView = NSTextView(
+            frame: CGRect(
+                x: point.x,
+                y: point.y,
+                width: minimumTextEditorSize.width,
+                height: minimumTextEditorSize.height
+            )
+        )
+        textView.delegate = self
+        textView.font = .systemFont(ofSize: store.textFontSize, weight: NSFont.Weight(store.textFontWeight))
+        textView.textColor = NSColor(store.currentColor)
+        textView.backgroundColor = NSColor.black.withAlphaComponent(0.18)
+        textView.drawsBackground = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.minSize = minimumTextEditorSize
+        textView.maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: maximumTextEditorHeight)
+        textView.textContainerInset = CGSize(width: 8, height: 6)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = CGSize(
+            width: minimumTextEditorSize.width - (textView.textContainerInset.width * 2),
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.insertionPointColor = NSColor(store.currentColor)
+        textView.wantsLayer = true
+        textView.layer?.cornerRadius = 6
+        textView.layer?.borderWidth = 1
+        textView.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+
+        addSubview(textView)
+        activeTextView = textView
+        window?.makeFirstResponder(textView)
     }
 
     private func beginTextMove(at point: CGPoint) -> Bool {
-        activeTextField?.removeFromSuperview()
-        activeTextField = nil
-
         guard let annotation = textAnnotation(at: point),
               let origin = annotation.points.first else {
             return false
@@ -228,10 +258,11 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             }
     }
 
-    private func commitTextField(_ field: NSTextField) {
-        let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let origin = field.frame.origin
-        field.removeFromSuperview()
+    private func commitTextView(_ textView: NSTextView) {
+        let text = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let origin = textView.frame.origin
+        textView.removeFromSuperview()
+        activeTextView = nil
 
         guard !text.isEmpty else { return }
 
@@ -243,51 +274,81 @@ final class OverlayView: NSView, NSTextFieldDelegate {
                 color: store.currentColor,
                 lineWidth: store.strokeWidth,
                 text: text,
-                fontSize: textFontSize(for: store.strokeWidth)
+                fontSize: store.textFontSize,
+                fontWeight: store.textFontWeight
             )
         )
         needsDisplay = true
     }
 
-    private func textFontSize(for strokeWidth: CGFloat) -> CGFloat {
-        switch strokeWidth {
-        case ...1:
-            18
-        case ...3:
-            24
-        case ...5:
-            32
-        default:
-            44
-        }
-    }
-
-    private func cancelTextField(_ field: NSTextField) {
-        field.removeFromSuperview()
-        activeTextField = nil
+    private func cancelTextView(_ textView: NSTextView) {
+        textView.removeFromSuperview()
+        activeTextView = nil
         store.exitScreenControls()
         needsDisplay = true
     }
 
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        guard let field = control as? NSTextField else { return false }
-
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            commitTextField(field)
+            if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+                textView.insertText("\n", replacementRange: textView.selectedRange())
+                resizeTextView(textView)
+                return true
+            }
+
+            commitTextView(textView)
             return true
         }
 
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            cancelTextField(field)
+            cancelTextView(textView)
             return true
         }
 
         return false
     }
 
-    func controlTextDidEndEditing(_ notification: Notification) {
-        guard let field = notification.object as? NSTextField, field.superview != nil else { return }
-        commitTextField(field)
+    func textDidChange(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else { return }
+        resizeTextView(textView)
+    }
+
+    private func resizeTextView(_ textView: NSTextView) {
+        guard let font = textView.font else { return }
+
+        let inset = textView.textContainerInset
+        let horizontalPadding = inset.width * 2 + 2
+        let availableWidth = max(120, bounds.maxX - textView.frame.minX - 16)
+        let maxWidth = min(availableWidth, bounds.width - 16)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let measuredText = textView.string.isEmpty ? "Text" : textView.string
+        let longestLineWidth = measuredText
+            .components(separatedBy: .newlines)
+            .map { line in
+                let value = line.isEmpty ? " " : line
+                return ceil((value as NSString).size(withAttributes: attributes).width)
+            }
+            .max() ?? 0
+        let targetWidth = min(max(longestLineWidth + horizontalPadding + 18, minimumTextEditorSize.width), maxWidth)
+
+        var frame = textView.frame
+        frame.size.width = targetWidth
+        textView.frame = frame
+
+        textView.textContainer?.containerSize = CGSize(
+            width: targetWidth - horizontalPadding,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        if let layoutManager = textView.layoutManager,
+           let textContainer = textView.textContainer {
+            layoutManager.ensureLayout(for: textContainer)
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            frame.size.height = min(
+                max(ceil(usedRect.height + inset.height * 2 + 6), minimumTextEditorSize.height),
+                maximumTextEditorHeight
+            )
+            textView.frame = frame
+        }
     }
 
     private func appendLaserPoint(_ point: CGPoint) {

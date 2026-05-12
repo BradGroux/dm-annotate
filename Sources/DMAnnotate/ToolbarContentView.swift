@@ -10,8 +10,10 @@ struct ToolbarContentView: View {
     @State private var permissionSummary = PermissionSummary.current()
     @State private var isPalettePopoverPresented = false
     @State private var isStrokeWidthPopoverPresented = false
+    @State private var isTextStylePopoverPresented = false
     @State private var isScreenshotPopoverPresented = false
     @State private var customStrokeWidthText = ""
+    @State private var customTextFontSizeText = ""
     @State private var selectedPaletteIndex = 0
 
     private let buttonSize: CGFloat = 30
@@ -29,6 +31,10 @@ struct ToolbarContentView: View {
     }
 
     private var strokeWidthColumns: [GridItem] {
+        Array(repeating: GridItem(.fixed(42), spacing: gridSpacing), count: 4)
+    }
+
+    private var textFontSizeColumns: [GridItem] {
         Array(repeating: GridItem(.fixed(42), spacing: gridSpacing), count: 4)
     }
 
@@ -97,6 +103,7 @@ struct ToolbarContentView: View {
                     colorControls
                 }
                 widthMenu
+                textStyleMenu
 
                 sectionDivider
 
@@ -121,6 +128,7 @@ struct ToolbarContentView: View {
                 verticalDivider
                 colorControls
                 widthMenu
+                textStyleMenu
                 verticalDivider
                 actionButtons
             }
@@ -429,6 +437,120 @@ struct ToolbarContentView: View {
         }
     }
 
+    private var textStyleMenu: some View {
+        Button {
+            ToolbarTooltipController.shared.hide()
+            customTextFontSizeText = formattedTextFontSize(store.textFontSize)
+            isTextStylePopoverPresented.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "textformat.size")
+                Text(formattedTextFontSize(store.textFontSize))
+                    .font(.caption.weight(.semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .frame(width: 66, height: buttonSize)
+        }
+        .buttonStyle(toolbarButtonStyle(active: isTextStylePopoverPresented))
+        .popover(isPresented: $isTextStylePopoverPresented, arrowEdge: .bottom) {
+            textStylePopover
+        }
+        .toolbarHelp("Text style: \(formattedTextFontSize(store.textFontSize)) px, \(store.textFontWeight.displayName)")
+        .accessibilityLabel("Text style")
+    }
+
+    private var textStylePopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Size")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: textFontSizeColumns, spacing: gridSpacing) {
+                    ForEach(AnnotationStore.supportedTextFontSizes, id: \.self) { size in
+                        Button {
+                            ToolbarTooltipController.shared.hide()
+                            store.setTextFontSize(size)
+                            customTextFontSizeText = formattedTextFontSize(size)
+                        } label: {
+                            Text("\(Int(size))")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(store.textFontSize == size ? Color.white : Color.primary)
+                                .frame(width: 42, height: 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(store.textFontSize == size ? Color.accentColor : Color.primary.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .toolbarHelp("\(Int(size)) px text")
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("Custom", text: $customTextFontSizeText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 76)
+                    .onSubmit(applyCustomTextFontSize)
+
+                Text("px")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Set") {
+                    applyCustomTextFontSize()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+
+            Divider()
+
+            Picker("Weight", selection: textFontWeightBinding) {
+                ForEach(TextFontWeight.allCases) { weight in
+                    Text(weight.displayName).tag(weight)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Color")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: paletteColumns, spacing: gridSpacing) {
+                    ForEach(Array(preferences.snapshot.paletteColors.enumerated()), id: \.offset) { index, color in
+                        Button {
+                            ToolbarTooltipController.shared.hide()
+                            store.currentColor = color
+                        } label: {
+                            colorSwatch(color, selected: store.currentColor == color, size: 24)
+                                .frame(width: 30, height: 30)
+                        }
+                        .buttonStyle(.plain)
+                        .toolbarHelp("Text color \(index + 1)")
+                    }
+                }
+
+                Button {
+                    ToolbarTooltipController.shared.hide()
+                    ToolbarColorPanelController.shared.show(currentColor: store.currentColor, store: store)
+                } label: {
+                    Label("Custom color", systemImage: "eyedropper")
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .frame(width: 236)
+        .onAppear {
+            customTextFontSizeText = formattedTextFontSize(store.textFontSize)
+        }
+    }
+
     @ViewBuilder private var actionButtons: some View {
         iconButton("arrow.uturn.backward", active: false, enabled: store.canUndo, help: "Undo", shortcut: .undo) {
             store.undo()
@@ -634,8 +756,36 @@ struct ToolbarContentView: View {
         isStrokeWidthPopoverPresented = false
     }
 
+    private func applyCustomTextFontSize() {
+        let normalizedInput = customTextFontSizeText
+            .lowercased()
+            .replacingOccurrences(of: "px", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let value = Double(normalizedInput) else {
+            NSSound.beep()
+            return
+        }
+
+        let size = AnnotationStore.normalizedTextFontSize(CGFloat(value))
+        store.setTextFontSize(size)
+        customTextFontSizeText = formattedTextFontSize(size)
+        isTextStylePopoverPresented = false
+    }
+
     private func formattedStrokeWidth(_ width: CGFloat) -> String {
         "\(Int(AnnotationStore.normalizedStrokeWidth(width)))"
+    }
+
+    private func formattedTextFontSize(_ size: CGFloat) -> String {
+        "\(Int(AnnotationStore.normalizedTextFontSize(size)))"
+    }
+
+    private var textFontWeightBinding: Binding<TextFontWeight> {
+        Binding(
+            get: { store.textFontWeight },
+            set: { store.setTextFontWeight($0) }
+        )
     }
 
     private func isActive(_ tool: AnnotationTool) -> Bool {

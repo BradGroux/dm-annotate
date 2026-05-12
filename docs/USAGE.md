@@ -2,6 +2,19 @@
 
 `dm-annotate` is designed for live annotation during demos, classes, design reviews, screen shares, and recordings.
 
+<p align="center">
+  <img src="assets/screenshots/dm-annotate-demo.png" alt="Digital Meld Annotate drawing over a GitHub page" width="900">
+</p>
+
+## Mac Requirements
+
+- macOS 13 Ventura or later.
+- Screen Recording permission for full-screen and region screenshots that include other apps behind annotations.
+- Accessibility permission for reliable global shortcuts while another app is active.
+- Input Monitoring may be required by macOS for global keyboard shortcuts, depending on OS version and security settings.
+
+The onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. Reopen it from **Permissions...** in the app menu or menu bar item.
+
 ## Launch
 
 Run from source:
@@ -17,12 +30,17 @@ scripts/build-app.sh
 open ".build/Digital Meld Annotate.app"
 ```
 
-Release zip downloads are ad-hoc signed developer previews until Developer ID signing and notarization are configured. After moving the app to `/Applications`, run:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
-open "/Applications/Digital Meld Annotate.app"
-```
+> [!IMPORTANT]
+> Release zip downloads are ad-hoc signed developer previews until Developer ID signing and notarization are configured. macOS Gatekeeper may block the first launch.
+>
+> After moving the app to `/Applications`, run:
+>
+> ```sh
+> xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
+> open "/Applications/Digital Meld Annotate.app"
+> ```
+>
+> Only do this for builds you trust.
 
 The app appears in the macOS menu bar and shows a floating toolbar.
 
@@ -84,13 +102,21 @@ Supported tools:
 - Whiteboard
 - Blackboard
 
+Text annotations support:
+
+- Plain `Enter` to commit the text annotation.
+- `Shift+Enter` to insert a newline.
+- Auto-expanding text entry as the sentence grows.
+- Dragging existing text with the Text tool.
+- Text style controls for font size, custom size, weight, and color.
+
 Whiteboard and blackboard controls toggle white and black presentation backgrounds. Settings can still choose light grid or dark grid board backgrounds.
 
 | Whiteboard | Blackboard |
 | --- | --- |
 | <img src="assets/screenshots/whiteboard.png" alt="Whiteboard mode"> | <img src="assets/screenshots/blackboard.png" alt="Blackboard mode"> |
 
-## Colors and Stroke Width
+## Colors, Stroke Width, and Text Style
 
 The toolbar includes:
 
@@ -98,6 +124,7 @@ The toolbar includes:
 - A custom color swatch that opens the macOS color panel.
 - Saved palettes that can be reloaded later.
 - Stroke presets from `1` through `64` px plus a custom stroke width entry.
+- A text style popover with font size presets, custom font size, font weight, and text color.
 
 The first four palette colors are mapped to Command+1 through Command+4 by default. Palette colors and the default color can be changed in Settings.
 
@@ -106,7 +133,7 @@ The first four palette colors are mapped to Command+1 through Command+4 by defau
 Screenshot actions include:
 
 - Full-display screenshot using the configured default output.
-- Region screenshot.
+- Region screenshot with crosshair guide lines while selecting.
 - Copy PNG to clipboard.
 - Save timestamped PNG to disk.
 - Reveal the last saved screenshot in Finder.

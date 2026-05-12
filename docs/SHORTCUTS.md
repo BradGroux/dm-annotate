@@ -52,3 +52,13 @@ These are intentionally not configurable:
 | Quit after exiting drawing controls | double-tap `Esc` |
 | Quit when app has focus | `Command+Q` |
 | Safe Mode launch | hold `Shift` while launching |
+
+## Text entry shortcuts
+
+These apply while the inline text editor is active:
+
+| Action | Shortcut |
+| --- | --- |
+| Commit text annotation | `Enter` |
+| Insert newline | `Shift+Enter` |
+| Cancel text entry and exit controls | `Esc` |
