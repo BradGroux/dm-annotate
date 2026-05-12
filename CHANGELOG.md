@@ -6,6 +6,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Fixed
+
+- Keep the live text entry box anchored and on-screen while typing or resizing.
+
 ## 0.1.6 - 2026-05-12
 
 ### Added
