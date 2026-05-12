@@ -9,6 +9,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var laserTrail: [TimedPoint] = []
     private var laserTimer: Timer?
     private weak var activeTextView: NSTextView?
+    private var activeTextOrigin: CGPoint?
     private var textMove: TextMove?
 
     private let minimumTextEditorSize = CGSize(width: 220, height: 38)
@@ -39,6 +40,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             textMove = nil
             activeTextView?.removeFromSuperview()
             activeTextView = nil
+            activeTextOrigin = nil
         }
         needsDisplay = true
     }
@@ -200,7 +202,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         textView.importsGraphics = false
         textView.allowsUndo = true
         textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
+        textView.isVerticallyResizable = false
         textView.minSize = minimumTextEditorSize
         textView.maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: maximumTextEditorHeight)
         textView.textContainerInset = CGSize(width: 8, height: 6)
@@ -218,6 +220,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
         addSubview(textView)
         activeTextView = textView
+        activeTextOrigin = point
         window?.makeFirstResponder(textView)
     }
 
@@ -263,6 +266,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let origin = textView.frame.origin
         textView.removeFromSuperview()
         activeTextView = nil
+        activeTextOrigin = nil
 
         guard !text.isEmpty else { return }
 
@@ -284,6 +288,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func cancelTextView(_ textView: NSTextView) {
         textView.removeFromSuperview()
         activeTextView = nil
+        activeTextOrigin = nil
         store.exitScreenControls()
         needsDisplay = true
     }
@@ -331,9 +336,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
             .max() ?? 0
         let targetWidth = min(max(longestLineWidth + horizontalPadding + 18, minimumTextEditorSize.width), maxWidth)
 
-        var frame = textView.frame
-        frame.size.width = targetWidth
-        textView.frame = frame
+        let anchor = activeTextOrigin ?? textView.frame.origin
+        var frame = CGRect(origin: anchor, size: CGSize(width: targetWidth, height: textView.frame.height))
+        textView.frame = clampedTextEditorFrame(frame)
 
         textView.textContainer?.containerSize = CGSize(
             width: targetWidth - horizontalPadding,
@@ -347,8 +352,19 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 max(ceil(usedRect.height + inset.height * 2 + 6), minimumTextEditorSize.height),
                 maximumTextEditorHeight
             )
-            textView.frame = frame
+            textView.frame = clampedTextEditorFrame(frame)
         }
+    }
+
+    private func clampedTextEditorFrame(_ frame: CGRect) -> CGRect {
+        let margin: CGFloat = 8
+        let maxX = max(bounds.maxX - frame.width - margin, margin)
+        let maxY = max(bounds.maxY - frame.height - margin, margin)
+        let origin = CGPoint(
+            x: min(max(frame.origin.x, margin), maxX),
+            y: min(max(frame.origin.y, margin), maxY)
+        )
+        return CGRect(origin: origin, size: frame.size)
     }
 
     private func appendLaserPoint(_ point: CGPoint) {
