@@ -6,6 +6,19 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.6 - 2026-05-12
+
+### Added
+
+- Added the annotated demo screenshot to README and usage docs.
+- Added toolbar text style controls for font size, weight, and text color.
+
+### Fixed
+
+- Let Shift+Enter insert a newline while plain Enter commits text annotations.
+- Make the live text entry box expand as text grows instead of clipping the sentence.
+- Prevent the same click from both committing a text annotation and starting a move/new text action.
+
 ## 0.1.5 - 2026-05-12
 
 ### Fixed

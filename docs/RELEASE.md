@@ -2,6 +2,13 @@
 
 This project can build an unsigned local app bundle from source. Public binary releases should be signed and notarized before distribution.
 
+## macOS requirements
+
+- macOS 13 Ventura or later.
+- Screen Recording permission for screenshots that include other apps.
+- Accessibility permission for reliable global shortcuts.
+- Input Monitoring may be required by macOS for global keyboard shortcuts.
+
 ## Version source
 
 The app version is read from:
@@ -150,15 +157,16 @@ When those secrets are present, the release workflow:
 
 ## Opening developer preview builds
 
-Ad-hoc signed preview builds are not notarized. Until Developer ID signed/notarized releases are available, macOS may block them with an "Apple could not verify" dialog.
-
-For local testing only, after moving the app to `/Applications`, you can allow it manually:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
-open "/Applications/Digital Meld Annotate.app"
-```
-
-Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
+> [!IMPORTANT]
+> Ad-hoc signed preview builds are not notarized. Until Developer ID signed/notarized releases are available, macOS may block them with an "Apple could not verify" dialog.
+>
+> For local testing only, after moving the app to `/Applications`, allow it manually:
+>
+> ```sh
+> xattr -dr com.apple.quarantine "/Applications/Digital Meld Annotate.app"
+> open "/Applications/Digital Meld Annotate.app"
+> ```
+>
+> Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
 
 Homebrew distribution should wait until signed/notarized releases are stable.

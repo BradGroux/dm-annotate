@@ -7,11 +7,16 @@ public final class AnnotationStore: ObservableObject {
     public static let supportedStrokeWidths: [CGFloat] = [1, 2, 3, 5, 8, 10, 12, 16, 20, 24, 32, 64]
     public static let minimumStrokeWidth: CGFloat = 1
     public static let maximumStrokeWidth: CGFloat = 64
+    public static let supportedTextFontSizes: [CGFloat] = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 96]
+    public static let minimumTextFontSize: CGFloat = 8
+    public static let maximumTextFontSize: CGFloat = 160
 
     @Published public private(set) var annotations: [AnnotationItem]
     @Published public var activeTool: AnnotationTool
     @Published public var currentColor: RGBAColor
     @Published public var strokeWidth: CGFloat
+    @Published public var textFontSize: CGFloat
+    @Published public var textFontWeight: TextFontWeight
     @Published public var isVisible: Bool
     @Published public var annotationsLocked: Bool
     @Published public var whiteboardModeEnabled: Bool
@@ -27,6 +32,8 @@ public final class AnnotationStore: ObservableObject {
         activeTool: AnnotationTool = .cursor,
         currentColor: RGBAColor = .red,
         strokeWidth: CGFloat = 3,
+        textFontSize: CGFloat = 24,
+        textFontWeight: TextFontWeight = .semibold,
         isVisible: Bool = true,
         annotationsLocked: Bool = false,
         whiteboardModeEnabled: Bool = false,
@@ -36,6 +43,8 @@ public final class AnnotationStore: ObservableObject {
         self.activeTool = activeTool
         self.currentColor = currentColor
         self.strokeWidth = Self.normalizedStrokeWidth(strokeWidth)
+        self.textFontSize = Self.normalizedTextFontSize(textFontSize)
+        self.textFontWeight = textFontWeight
         self.isVisible = isVisible
         self.annotationsLocked = annotationsLocked
         self.whiteboardModeEnabled = whiteboardModeEnabled
@@ -71,12 +80,29 @@ public final class AnnotationStore: ObservableObject {
         strokeWidth = Self.normalizedStrokeWidth(width)
     }
 
+    public func setTextFontSize(_ size: CGFloat) {
+        textFontSize = Self.normalizedTextFontSize(size)
+    }
+
+    public func setTextFontWeight(_ weight: TextFontWeight) {
+        textFontWeight = weight
+    }
+
     public static func normalizedStrokeWidth(_ width: CGFloat) -> CGFloat {
         guard width.isFinite else { return minimumStrokeWidth }
 
         return Swift.min(
             Swift.max(width.rounded(.toNearestOrAwayFromZero), minimumStrokeWidth),
             maximumStrokeWidth
+        )
+    }
+
+    public static func normalizedTextFontSize(_ size: CGFloat) -> CGFloat {
+        guard size.isFinite else { return 24 }
+
+        return Swift.min(
+            Swift.max(size.rounded(.toNearestOrAwayFromZero), minimumTextFontSize),
+            maximumTextFontSize
         )
     }
 

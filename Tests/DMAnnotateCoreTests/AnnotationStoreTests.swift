@@ -231,12 +231,15 @@ import Testing
     store.add(original)
     store.recordMove(from: original, to: moved)
 
+    #expect(store.annotations.count == 1)
     #expect(store.annotation(id: original.id)?.points == moved.points)
 
     store.undo()
+    #expect(store.annotations.count == 1)
     #expect(store.annotation(id: original.id)?.points == original.points)
 
     store.redo()
+    #expect(store.annotations.count == 1)
     #expect(store.annotation(id: original.id)?.points == moved.points)
 }
 
@@ -276,6 +279,51 @@ import Testing
 
     store.setStrokeWidth(-4)
     #expect(store.strokeWidth == 1)
+}
+
+@MainActor
+@Test func customTextFontSizeIsRoundedAndClamped() {
+    let store = AnnotationStore(textFontSize: 24)
+
+    store.setTextFontSize(27.6)
+    #expect(store.textFontSize == 28)
+
+    store.setTextFontSize(500)
+    #expect(store.textFontSize == 160)
+
+    store.setTextFontSize(-2)
+    #expect(store.textFontSize == 8)
+
+    store.setTextFontWeight(.bold)
+    #expect(store.textFontWeight == .bold)
+}
+
+@Test func textAnnotationsAccountForMultilineBoundsAndWeight() {
+    let singleLine = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 10, y: 20)],
+        color: .red,
+        lineWidth: 3,
+        text: "Short",
+        fontSize: 24,
+        fontWeight: .regular
+    )
+    let multiline = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 10, y: 20)],
+        color: .blue,
+        lineWidth: 3,
+        text: "Short\nA much longer line",
+        fontSize: 24,
+        fontWeight: .heavy
+    )
+
+    #expect(singleLine.fontWeight == .regular)
+    #expect(multiline.fontWeight == .heavy)
+    #expect(multiline.boundingRect.height > singleLine.boundingRect.height)
+    #expect(multiline.boundingRect.width > singleLine.boundingRect.width)
 }
 
 @Test func shortcutTextNormalizesAliasesAndRejectsUnsafeShortcuts() {

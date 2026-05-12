@@ -137,11 +137,26 @@ enum AnnotationRenderer {
         guard let point = annotation.points.first else { return }
 
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: annotation.fontSize, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: annotation.fontSize, weight: NSFont.Weight(annotation.fontWeight)),
             .foregroundColor: NSColor(annotation.color)
         ]
 
-        annotation.text.draw(at: point, withAttributes: attributes)
+        if annotation.text.contains("\n") {
+            let textBounds = annotation.boundingRect
+            let textRect = CGRect(
+                x: point.x,
+                y: point.y,
+                width: max(textBounds.width - 16, 64),
+                height: max(textBounds.height - 16, annotation.fontSize * 1.3)
+            )
+            annotation.text.draw(
+                with: textRect,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes
+            )
+        } else {
+            annotation.text.draw(at: point, withAttributes: attributes)
+        }
     }
 
     private static func drawGrid(in rect: CGRect, color: NSColor) {
@@ -166,6 +181,23 @@ enum AnnotationRenderer {
 struct TimedPoint {
     var point: CGPoint
     var timestamp: Date
+}
+
+extension NSFont.Weight {
+    init(_ weight: TextFontWeight) {
+        switch weight {
+        case .regular:
+            self = .regular
+        case .medium:
+            self = .medium
+        case .semibold:
+            self = .semibold
+        case .bold:
+            self = .bold
+        case .heavy:
+            self = .heavy
+        }
+    }
 }
 
 extension NSColor {
