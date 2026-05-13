@@ -97,6 +97,8 @@ struct SettingsView: View {
             colorsSection
         case .shortcuts:
             shortcutsSection
+        case .community:
+            communitySection
         case .help:
             helpSection
         case .privacy:
@@ -344,6 +346,36 @@ struct SettingsView: View {
         }
     }
 
+    private var communitySection: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            settingsGroup("Start Small, Think Big") {
+                Text("SSTB.ai is the Digital Meld learning community for practical AI, automation, and implementation work.")
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    communityLink(
+                        title: "SSTB.ai",
+                        detail: "AI learning, automation, and transformation.",
+                        systemImage: "globe",
+                        url: URL(string: "https://www.sstb.ai/")!
+                    )
+                    communityLink(
+                        title: "Podcast Playlist",
+                        detail: "Start Small, Think Big on YouTube.",
+                        systemImage: "play.rectangle",
+                        url: URL(string: "https://www.youtube.com/playlist?list=PLw2ImU79nlNNgAbYOkdMpSPaqYgK2CDLR")!
+                    )
+                    communityLink(
+                        title: "Discord Server",
+                        detail: "Join the Start Small, Think Big community.",
+                        systemImage: "bubble.left.and.bubble.right",
+                        url: URL(string: "https://discord.gg/Gmfkm7QVSF")!
+                    )
+                }
+            }
+        }
+    }
+
     private var helpSection: some View {
         VStack(alignment: .leading, spacing: 24) {
             settingsGroup("Toolbar Help") {
@@ -507,6 +539,39 @@ struct SettingsView: View {
         }
     }
 
+    private func communityLink(title: String, detail: String, systemImage: String, url: URL) -> some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 28)
+                    .foregroundStyle(Color.accentColor)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint("Opens \(url.absoluteString)")
+    }
+
     private var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
@@ -537,6 +602,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case tools
     case colors
     case shortcuts
+    case community
     case help
     case privacy
     case diagnostics
@@ -549,6 +615,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .tools: "Tools"
         case .colors: "Colors"
         case .shortcuts: "Shortcuts"
+        case .community: "Community"
         case .help: "Help"
         case .privacy: "Privacy"
         case .diagnostics: "Diagnostics"
@@ -561,6 +628,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .tools: "Choose which annotation tools appear in the toolbar."
         case .colors: "Manage the default color, toolbar palette, and saved palettes."
         case .shortcuts: "Customize or disable keyboard shortcuts."
+        case .community: "Connect with SSTB.ai, the podcast, and the Discord community."
         case .help: "Find tooltip, shortcut, permission, and version details."
         case .privacy: "Review local-only behavior and macOS permissions."
         case .diagnostics: "Inspect runtime state and recover local integrations."
@@ -573,6 +641,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .tools: "pencil.and.outline"
         case .colors: "paintpalette"
         case .shortcuts: "keyboard"
+        case .community: "person.3"
         case .help: "questionmark.circle"
         case .privacy: "lock.shield"
         case .diagnostics: "stethoscope"

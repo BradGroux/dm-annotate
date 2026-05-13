@@ -1,6 +1,9 @@
 import AppKit
 import DMAnnotateCore
 
+private let appDisplayName = "Digital Meld Annotate"
+private let appMenuName = "Annotate"
+
 @MainActor
 @objc protocol AppMenuActionHandling: AnyObject {
     func showToolbar()
@@ -35,7 +38,7 @@ struct AppMenuBuilder {
     func installMainMenu() {
         let mainMenu = NSMenu(title: "Main Menu")
 
-        mainMenu.addItem(menuRoot("Digital Meld Annotate", submenu: appMenu()))
+        mainMenu.addItem(menuRoot(appMenuName, submenu: appMenu()))
         mainMenu.addItem(menuRoot("File", submenu: fileMenu()))
         mainMenu.addItem(menuRoot("Edit", submenu: editMenu()))
         mainMenu.addItem(menuRoot("View", submenu: viewMenu()))
@@ -69,7 +72,7 @@ struct AppMenuBuilder {
         menu.addItem(.separator())
         menu.addItem(menuItem("Permissions...", action: #selector(AppMenuActionHandling.showPermissions), shortcut: .showPermissions))
         menu.addItem(menuItem("Settings...", action: #selector(AppMenuActionHandling.showSettings), shortcut: .showSettings))
-        menu.addItem(menuItem("Quit Digital Meld Annotate", action: #selector(AppMenuActionHandling.quit), key: "q"))
+        menu.addItem(menuItem("Quit \(appDisplayName)", action: #selector(AppMenuActionHandling.quit), key: "q"))
         return menu
     }
 
@@ -81,8 +84,8 @@ struct AppMenuBuilder {
     }
 
     private func appMenu() -> NSMenu {
-        let menu = NSMenu(title: "Digital Meld Annotate")
-        menu.addItem(menuItem("About Digital Meld Annotate", action: #selector(AppMenuActionHandling.showAbout), key: ""))
+        let menu = NSMenu(title: appMenuName)
+        menu.addItem(menuItem("About \(appDisplayName)", action: #selector(AppMenuActionHandling.showAbout), key: ""))
         menu.addItem(.separator())
         menu.addItem(menuItem("Permissions...", action: #selector(AppMenuActionHandling.showPermissions), shortcut: .showPermissions))
         menu.addItem(menuItem("Settings...", action: #selector(AppMenuActionHandling.showSettings), shortcut: .showSettings))
@@ -95,13 +98,13 @@ struct AppMenuBuilder {
         menu.addItem(servicesItem)
 
         menu.addItem(.separator())
-        menu.addItem(appTargetItem("Hide Digital Meld Annotate", action: #selector(NSApplication.hide(_:)), key: "h"))
+        menu.addItem(appTargetItem("Hide \(appDisplayName)", action: #selector(NSApplication.hide(_:)), key: "h"))
         let hideOthersItem = appTargetItem("Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), key: "h")
         hideOthersItem.keyEquivalentModifierMask = [.command, .option]
         menu.addItem(hideOthersItem)
         menu.addItem(appTargetItem("Show All", action: #selector(NSApplication.unhideAllApplications(_:)), key: ""))
         menu.addItem(.separator())
-        menu.addItem(menuItem("Quit Digital Meld Annotate", action: #selector(AppMenuActionHandling.quit), key: "q"))
+        menu.addItem(menuItem("Quit \(appDisplayName)", action: #selector(AppMenuActionHandling.quit), key: "q"))
         return menu
     }
 
@@ -168,7 +171,7 @@ struct AppMenuBuilder {
 
     private func helpMenu() -> NSMenu {
         let menu = NSMenu(title: "Help")
-        menu.addItem(menuItem("Digital Meld Annotate Help", action: #selector(AppMenuActionHandling.showHelp), key: "?"))
+        menu.addItem(menuItem("\(appDisplayName) Help", action: #selector(AppMenuActionHandling.showHelp), key: "?"))
         NSApp.helpMenu = menu
         return menu
     }

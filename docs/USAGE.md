@@ -170,6 +170,7 @@ Settings include:
 - Whiteboard background.
 - Default color, toolbar palette, and saved palettes.
 - Keyboard shortcuts with duplicate detection and disable support.
+- Community links for SSTB.ai, the Start Small, Think Big podcast playlist, and Discord.
 - Help, version, permission, and diagnostics links.
 
 ## Safe Mode
