@@ -6,10 +6,14 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.8 - 2026-05-13
+
 ### Added
 
 - Added a Homebrew Cask definition and installation documentation.
 - Added the dedicated `BradGroux/tap` Homebrew install path to the docs.
+- Added a Community settings page with SSTB.ai, podcast playlist, and Discord links.
+- Shortened the macOS app menu title to `Annotate` while keeping the app display name as `Digital Meld Annotate`.
 
 ## 0.1.7 - 2026-05-12
 
