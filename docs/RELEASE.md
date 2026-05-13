@@ -114,7 +114,7 @@ dm-annotate/Casks/dm-annotate.rb
 After publishing a new GitHub Release, update both cask files with the release version and SHA256:
 
 ```sh
-VERSION="0.1.8"
+VERSION="0.1.9"
 tmpdir="$(mktemp -d)"
 gh release download "v${VERSION}" \
   --repo BradGroux/dm-annotate \
