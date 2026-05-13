@@ -6,6 +6,13 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.9 - 2026-05-13
+
+### Changed
+
+- Kept the floating toolbar annotation lock button and grouped screenshot actions together.
+- Fixed vertical toolbar sizing so the bottom action controls are not clipped.
+
 ## 0.1.8 - 2026-05-13
 
 ### Added

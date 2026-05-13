@@ -564,15 +564,19 @@ struct ToolbarContentView: View {
         iconButton(store.isVisible ? "eye" : "eye.slash", active: false, help: "Show or hide annotations", shortcut: .toggleAnnotationVisibility) {
             store.toggleVisibility()
         }
+        screenshotMenu
+        regionScreenshotButton
         iconButton("trash", active: false, help: "Clear all", shortcut: .clearAll) {
             store.clearAll()
         }
-        screenshotMenu
-        iconButton("crop", active: false, help: "Region screenshot", shortcut: .regionScreenshot) {
-            actions.regionScreenshot()
-        }
         iconButton("gearshape", active: false, help: "Settings", shortcut: .showSettings) {
             actions.showSettings()
+        }
+    }
+
+    private var regionScreenshotButton: some View {
+        iconButton("crop", active: false, help: "Region screenshot", shortcut: .regionScreenshot) {
+            actions.regionScreenshot()
         }
     }
 

@@ -205,8 +205,9 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         let stackSpacing: CGFloat = 6
         let dragHandleHeight: CGFloat = 16
         let dividerHeight: CGFloat = 5
-        let widthControlHeight: CGFloat = 30
-        let childCount = 9
+        let menuControlHeight: CGFloat = 30
+        let childCount = 10
+        let menuControlCount = 2
         let topControls = 2 + statusControlCount()
         let toolControls = snapshot.visibleTools.count
         let colorControls = min(snapshot.paletteColors.count, 4) + 2
@@ -218,7 +219,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
             gridHeight(itemCount: toolControls, columns: 2) +
             dividerHeight +
             gridHeight(itemCount: colorControls, columns: 2) +
-            widthControlHeight +
+            CGFloat(menuControlCount) * menuControlHeight +
             dividerHeight +
             gridHeight(itemCount: Self.actionButtonCount, columns: 2) +
             CGFloat(childCount - 1) * stackSpacing +
@@ -231,20 +232,21 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         let outerPadding: CGFloat = 12
         let dragHandleWidth: CGFloat = 16
         let dividerWidth: CGFloat = 5
-        let strokeWidthControlWidth: CGFloat = 66
+        let menuControlWidth: CGFloat = 66
+        let menuControlCount = 2
         let fixedButtons = 2
         let statusButtons = statusControlCount()
         let toolButtons = snapshot.visibleTools.count
         let colorButtons = min(snapshot.paletteColors.count, 4) + 2
         let actionButtons = Self.actionButtonCount
         let buttonCount = fixedButtons + statusButtons + toolButtons + colorButtons + actionButtons
-        let elementCount = 1 + buttonCount + 3 + 1
+        let elementCount = 1 + buttonCount + 3 + menuControlCount
 
         return outerPadding +
             dragHandleWidth +
             CGFloat(buttonCount) * buttonWidth +
             CGFloat(3) * dividerWidth +
-            strokeWidthControlWidth +
+            CGFloat(menuControlCount) * menuControlWidth +
             CGFloat(max(elementCount - 1, 0)) * spacing
     }
 
