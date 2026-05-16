@@ -1,4 +1,6 @@
 import AppKit
+import Combine
+import Darwin
 import DMAnnotateCore
 
 @MainActor
@@ -15,19 +17,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     private var onboardingController: PermissionOnboardingController!
     private var commandPaletteController: CommandPaletteController!
     private var statusItem: NSStatusItem?
+    private var cancellables: Set<AnyCancellable> = []
+    private let launchArguments: Set<String>
+
+    init(arguments: [String] = CommandLine.arguments) {
+        launchArguments = Set(arguments)
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let launchState = launchRecovery.beginLaunch()
+        let launchState = isUISmokeMode
+            ? LaunchState(isSafeMode: true, recoveredFromAbnormalExit: false)
+            : launchRecovery.beginLaunch()
         runtimeState.configure(isSafeMode: launchState.isSafeMode, recoveredFromAbnormalExit: launchState.recoveredFromAbnormalExit)
         configureControllers()
         preferences.applyToStore()
         recoverLaunchStateIfNeeded(launchState)
-        AppMenuBuilder(target: self).installMainMenu()
+        installAppMenus()
         configureStatusItem()
+        observeShortcutPreferences()
         if !launchState.isSafeMode {
             overlayController.start()
         }
         toolbarWindowController.show()
+        if isUISmokeMode {
+            runUISmoke()
+            return
+        }
         if launchState.isSafeMode || launchState.recoveredFromAbnormalExit {
             toolbarWindowController.centerOnMainScreen()
         }
@@ -39,8 +55,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         }
     }
 
+    private var isUISmokeMode: Bool {
+        launchArguments.contains("--smoke-ui")
+    }
+
     private func configureControllers() {
-        preferences = PreferencesController(store: store)
+        let defaults = isUISmokeMode
+            ? UserDefaults(suiteName: "io.digitalmeld.dm-annotate.smoke") ?? .standard
+            : .standard
+
+        preferences = PreferencesController(store: store, defaults: defaults)
         overlayController = OverlayController(store: store)
         screenshotController = ScreenshotController(
             store: store,
@@ -71,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             shortcutController: shortcutController,
             runtimeState: runtimeState
         )
-        onboardingController = PermissionOnboardingController()
+        onboardingController = PermissionOnboardingController(defaults: defaults)
         commandPaletteController = CommandPaletteController()
         toolbarWindowController = ToolbarWindowController(
             store: store,
@@ -85,18 +109,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
                 regionScreenshot: { [weak self] in self?.screenshotController.captureRegion() },
                 copyScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .clipboard) },
                 saveScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .file) },
+                saveAnnotationsScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .file, renderMode: .annotationsOnly) },
                 revealLastScreenshot: { [weak self] in self?.screenshotController.revealLastScreenshot() },
                 showSettings: { [weak self] in self?.settingsWindowController.toggle() },
                 showPermissions: { [weak self] in self?.onboardingController.show() },
                 toggleAnnotationLock: { [weak self] in self?.store.toggleAnnotationLock() },
-                findToolbar: { [weak self] in self?.toolbarWindowController.findToolbar() }
+                findToolbar: { [weak self] in self?.toolbarWindowController.findToolbar() },
+                resizeToolbar: { [weak self] in self?.toolbarWindowController.resizeToFit() }
             )
         )
+        screenshotController.setCaptureChromeHider { [weak self] capture in
+            guard let self else { return capture() }
+            return self.toolbarWindowController.temporarilyHideForCapture(capture)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         shortcutController.stop()
-        launchRecovery.markCleanExit()
+        if !isUISmokeMode {
+            launchRecovery.markCleanExit()
+        }
     }
 
     private func recoverLaunchStateIfNeeded(_ launchState: LaunchState) {
@@ -111,8 +143,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "pencil.and.outline", accessibilityDescription: "Digital Meld Annotate")
         item.button?.toolTip = "Digital Meld Annotate"
-        item.menu = AppMenuBuilder(target: self).statusMenu()
+        item.menu = AppMenuBuilder(target: self, shortcuts: preferences.snapshot.shortcuts).statusMenu()
         statusItem = item
+    }
+
+    private func installAppMenus() {
+        AppMenuBuilder(target: self, shortcuts: preferences.snapshot.shortcuts).installMainMenu()
+    }
+
+    private func observeShortcutPreferences() {
+        preferences.$snapshot
+            .map(\.shortcuts)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.installAppMenus()
+                self.statusItem?.menu = AppMenuBuilder(target: self, shortcuts: self.preferences.snapshot.shortcuts).statusMenu()
+            }
+            .store(in: &cancellables)
     }
 
     @objc func showToolbar() {
@@ -163,6 +212,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 
     @objc func saveScreenshot() {
         screenshotController.captureFullDisplay(destination: .file)
+    }
+
+    @objc func saveAnnotationsScreenshot() {
+        screenshotController.captureFullDisplay(destination: .file, renderMode: .annotationsOnly)
     }
 
     @objc func captureRegionScreenshot() {
@@ -221,6 +274,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         commandPaletteController.toggle(commands: commandPaletteCommands())
     }
 
+    private func runUISmoke() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.performUISmoke()
+        }
+    }
+
+    private func performUISmoke() {
+        var failures: [String] = []
+
+        toolbarWindowController.show()
+        settingsWindowController.show()
+        onboardingController.show()
+        commandPaletteController.show(commands: commandPaletteCommands())
+
+        NSApp.updateWindows()
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.10))
+
+        if !toolbarWindowController.isVisible {
+            failures.append("Toolbar panel is not visible.")
+        }
+        if !settingsWindowController.isVisible {
+            failures.append("Settings window is not visible.")
+        }
+        if !onboardingController.isVisible {
+            failures.append("Permissions window is not visible.")
+        }
+        if !commandPaletteController.isVisible {
+            failures.append("Command palette window is not visible.")
+        }
+
+        if failures.isEmpty {
+            print("dm-annotate UI smoke OK")
+            print("- toolbar visible")
+            print("- settings visible")
+            print("- permissions visible")
+            print("- command palette visible")
+            NSApp.terminate(nil)
+            return
+        }
+
+        fputs("dm-annotate UI smoke failed:\n", stderr)
+        for failure in failures {
+            fputs("- \(failure)\n", stderr)
+        }
+        exit(EXIT_FAILURE)
+    }
+
     private func commandPaletteCommands() -> [CommandPaletteCommand] {
         var commands: [CommandPaletteCommand] = [
             CommandPaletteCommand(title: "Cursor Mode", subtitle: "Pass clicks through to apps", systemImage: "cursorarrow") { [weak self] in
@@ -246,6 +346,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             },
             CommandPaletteCommand(title: "Save Screenshot as PNG", subtitle: "Save annotated screenshot to disk", systemImage: "square.and.arrow.down") { [weak self] in
                 self?.screenshotController.captureFullDisplay(destination: .file)
+            },
+            CommandPaletteCommand(title: "Save Annotations as PNG", subtitle: "Export annotations over transparency", systemImage: "square.on.square.dashed") { [weak self] in
+                self?.screenshotController.captureFullDisplay(destination: .file, renderMode: .annotationsOnly)
             },
             CommandPaletteCommand(title: "Region Screenshot", subtitle: "Drag a capture region", systemImage: "crop") { [weak self] in
                 self?.screenshotController.captureRegion()

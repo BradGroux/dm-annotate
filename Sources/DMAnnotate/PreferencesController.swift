@@ -79,12 +79,7 @@ final class PreferencesController: ObservableObject {
     }
 
     func duplicateShortcuts() -> Set<String> {
-        let normalized = snapshot.shortcuts.values
-            .map(ShortcutText.normalize)
-            .filter { !$0.isEmpty }
-
-        let counts = Dictionary(grouping: normalized, by: { $0 }).mapValues(\.count)
-        return Set(counts.filter { $0.value > 1 }.map(\.key))
+        ShortcutResolver.duplicateDescriptors(in: snapshot.shortcuts)
     }
 
     private func save() {
@@ -95,21 +90,7 @@ final class PreferencesController: ObservableObject {
     private static func migrated(_ snapshot: PreferencesSnapshot) -> PreferencesSnapshot {
         var migrated = snapshot
 
-        migrated.shortcuts = migrated.shortcuts.mapValues { shortcut in
-            if shortcut.isEmpty {
-                return ""
-            }
-
-            return ShortcutText.normalize(shortcut)
-        }
-
-        for (action, shortcut) in ShortcutAction.defaultShortcuts where migrated.shortcuts[action] == nil {
-            migrated.shortcuts[action] = shortcut
-        }
-
-        for (action, shortcut) in migrated.shortcuts where !shortcut.isEmpty && !ShortcutText.isValid(shortcut) {
-            migrated.shortcuts[action] = ShortcutAction.defaultShortcuts[action] ?? ""
-        }
+        migrated.shortcuts = PreferencesSnapshot.normalizedShortcuts(migrated.shortcuts)
 
         migrated.paletteColors = PreferencesSnapshot.normalizedPaletteColors(migrated.paletteColors)
         migrated.quickColors = Array(migrated.paletteColors.prefix(4))

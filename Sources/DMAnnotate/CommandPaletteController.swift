@@ -27,6 +27,10 @@ final class CommandPaletteController {
         }
     }
 
+    var isVisible: Bool {
+        panel?.isVisible == true
+    }
+
     private func makePanel(commands: [CommandPaletteCommand]) {
         let view = CommandPaletteView(commands: commands) { [weak self] in
             self?.panel?.close()

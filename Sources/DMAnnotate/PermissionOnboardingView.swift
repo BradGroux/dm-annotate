@@ -3,8 +3,13 @@ import ApplicationServices
 import SwiftUI
 
 struct PermissionOnboardingView: View {
-    @StateObject private var viewModel = PermissionOnboardingViewModel()
+    @ObservedObject private var viewModel: PermissionOnboardingViewModel
     var onContinue: () -> Void
+
+    init(viewModel: PermissionOnboardingViewModel, onContinue: @escaping () -> Void) {
+        self.viewModel = viewModel
+        self.onContinue = onContinue
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -25,6 +30,9 @@ struct PermissionOnboardingView: View {
         .onAppear {
             viewModel.refresh()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.refresh()
+        }
     }
 
     private var header: some View {
@@ -43,19 +51,26 @@ struct PermissionOnboardingView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button {
-                viewModel.refresh()
-            } label: {
-                Label("Check Again", systemImage: "arrow.clockwise")
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            Text(viewModel.nextStep)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+            HStack {
+                Button {
+                    viewModel.refresh()
+                } label: {
+                    Label("Check Again", systemImage: "arrow.clockwise")
+                }
 
-            Button("Continue") {
-                onContinue()
+                Spacer()
+
+                Button("Continue") {
+                    onContinue()
+                }
+                .keyboardShortcut(.defaultAction)
             }
-            .keyboardShortcut(.defaultAction)
         }
     }
 }
@@ -120,28 +135,32 @@ private struct PermissionCard: View {
 @MainActor
 final class PermissionOnboardingViewModel: ObservableObject {
     @Published private(set) var items: [PermissionItem] = []
+    @Published private(set) var nextStep = ""
 
     init() {
         refresh()
     }
 
     func refresh() {
+        let screenRecordingStatus = PermissionChecks.screenRecordingStatus()
+        let accessibilityStatus = PermissionChecks.accessibilityStatus()
+
         items = [
             PermissionItem(
                 kind: .screenRecording,
                 title: "Screen Recording",
                 reason: "Required for full-screen and region screenshots that include other apps behind your annotations.",
-                detail: "macOS controls this in Privacy & Security. You may need to restart the app after changing it.",
-                status: PermissionChecks.screenRecordingStatus(),
-                buttonTitle: PermissionChecks.screenRecordingStatus() == .granted ? "Open Settings" : "Grant Access"
+                detail: "macOS controls this in Privacy & Security. Return to this window after changing it and the status will refresh.",
+                status: screenRecordingStatus,
+                buttonTitle: screenRecordingStatus == .granted ? "Open Settings" : "Grant Access"
             ),
             PermissionItem(
                 kind: .accessibility,
                 title: "Accessibility",
                 reason: "Used for reliable global shortcut behavior while another app is active.",
-                detail: "Digital Meld Annotate does not inspect app content; it only needs permission for shortcut handling.",
-                status: PermissionChecks.accessibilityStatus(),
-                buttonTitle: PermissionChecks.accessibilityStatus() == .granted ? "Open Settings" : "Grant Access"
+                detail: "Digital Meld Annotate does not inspect app content; return here after granting access and the status will refresh.",
+                status: accessibilityStatus,
+                buttonTitle: accessibilityStatus == .granted ? "Open Settings" : "Grant Access"
             ),
             PermissionItem(
                 kind: .inputMonitoring,
@@ -152,6 +171,7 @@ final class PermissionOnboardingViewModel: ObservableObject {
                 buttonTitle: "Open Settings"
             )
         ]
+        nextStep = Self.nextStep(screenRecording: screenRecordingStatus, accessibility: accessibilityStatus)
     }
 
     func requestOrOpen(_ kind: PermissionKind) {
@@ -169,6 +189,16 @@ final class PermissionOnboardingViewModel: ObservableObject {
         }
 
         refresh()
+    }
+
+    private static func nextStep(screenRecording: PermissionStatus, accessibility: PermissionStatus) -> String {
+        if screenRecording != .granted {
+            return "Next: grant Screen Recording in System Settings, then return to this window."
+        }
+        if accessibility != .granted {
+            return "Next: grant Accessibility in System Settings, then return to this window."
+        }
+        return "Required permissions are ready. If global shortcuts still miss keystrokes, confirm Input Monitoring in System Settings."
     }
 }
 

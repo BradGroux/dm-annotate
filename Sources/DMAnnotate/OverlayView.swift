@@ -34,6 +34,14 @@ final class OverlayView: NSView, NSTextViewDelegate {
         window?.acceptsMouseMovedEvents = true
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            laserTimer?.invalidate()
+            laserTimer = nil
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     func syncWithStore() {
         if store.activeTool == .cursor {
             preview = nil
@@ -160,7 +168,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         guard let finalPreview = preview else { return }
         preview = nil
 
-        if finalPreview.points.count > 1 || finalPreview.kind != .pen {
+        if !finalPreview.points.isEmpty {
             store.add(finalPreview)
         }
 
@@ -388,6 +396,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         needsDisplay = true
         if laserTrail.isEmpty {
             timer.invalidate()
+            laserTimer = nil
         }
     }
 }

@@ -4,11 +4,14 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class ScreenshotController {
+    typealias CaptureChromeHider = ((() -> NSImage?) -> NSImage?)
+
     private let store: AnnotationStore
     private let preferences: PreferencesController
     private let overlayController: OverlayController
     private var regionSelectionWindow: RegionSelectionWindow?
     private var lastSavedScreenshotURL: URL?
+    private var captureChromeHider: CaptureChromeHider?
 
     init(store: AnnotationStore, preferences: PreferencesController, overlayController: OverlayController) {
         self.store = store
@@ -16,16 +19,20 @@ final class ScreenshotController {
         self.overlayController = overlayController
     }
 
-    func captureFullDisplay(destination: ScreenshotDestination = .preferred) {
+    func setCaptureChromeHider(_ hider: @escaping CaptureChromeHider) {
+        captureChromeHider = hider
+    }
+
+    func captureFullDisplay(destination: ScreenshotDestination = .preferred, renderMode: ScreenshotRenderMode = .flattened) {
         guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else {
             showError("No display is available for capture.")
             return
         }
 
-        capture(screen: screen, region: nil, destination: destination)
+        capture(screen: screen, region: nil, destination: destination, renderMode: renderMode)
     }
 
-    func captureRegion(destination: ScreenshotDestination = .preferred) {
+    func captureRegion(destination: ScreenshotDestination = .preferred, renderMode: ScreenshotRenderMode = .flattened) {
         guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else {
             showError("No display is available for capture.")
             return
@@ -34,11 +41,12 @@ final class ScreenshotController {
         let window = RegionSelectionWindow(screen: screen) { [weak self] region in
             self?.regionSelectionWindow = nil
             guard let region, !region.isEmpty else { return }
-            self?.capture(screen: screen, region: region, destination: destination)
+            self?.capture(screen: screen, region: region, destination: destination, renderMode: renderMode)
         }
 
         regionSelectionWindow = window
         window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(window.contentView)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -51,10 +59,13 @@ final class ScreenshotController {
         NSWorkspace.shared.activateFileViewerSelecting([preferences.expandedScreenshotFolderURL()])
     }
 
-    private func capture(screen: NSScreen, region: CGRect?, destination: ScreenshotDestination) {
-        let image = overlayController.temporarilyHideForCapture {
-            composedImage(screen: screen, region: region)
+    private func capture(screen: NSScreen, region: CGRect?, destination: ScreenshotDestination, renderMode: ScreenshotRenderMode) {
+        let captureWork = { [self] in
+            overlayController.temporarilyHideForCapture {
+                composedImage(screen: screen, region: region, renderMode: renderMode)
+            }
         }
+        let image = captureChromeHider?(captureWork) ?? captureWork()
 
         guard let image else {
             showError("Screenshot failed. Grant Screen Recording permission in System Settings and try again.")
@@ -66,7 +77,7 @@ final class ScreenshotController {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
         case .file:
-            save(image)
+            save(image, renderMode: renderMode)
         }
     }
 
@@ -81,7 +92,16 @@ final class ScreenshotController {
         }
     }
 
-    private func composedImage(screen: NSScreen, region: CGRect?) -> NSImage? {
+    private func composedImage(screen: NSScreen, region: CGRect?, renderMode: ScreenshotRenderMode) -> NSImage? {
+        switch renderMode {
+        case .flattened:
+            return flattenedImage(screen: screen, region: region)
+        case .annotationsOnly:
+            return annotationsOnlyImage(screen: screen, region: region)
+        }
+    }
+
+    private func flattenedImage(screen: NSScreen, region: CGRect?) -> NSImage? {
         guard let cgImage = CGDisplayCreateImage(CGDirectDisplayID(screen.displayID)) else {
             return nil
         }
@@ -92,14 +112,38 @@ final class ScreenshotController {
             return nil
         }
 
-        guard let region else { return fullImage }
+        return crop(fullImage, to: region, pointSize: pointSize, pixelSize: pixelSize)
+    }
 
-        let scaleX = pixelSize.width / pointSize.width
-        let scaleY = pixelSize.height / pointSize.height
-        let pixelRegion = pixelRect(for: region, scaleX: scaleX, scaleY: scaleY, bounds: CGRect(origin: .zero, size: pixelSize))
+    private func annotationsOnlyImage(screen: NSScreen, region: CGRect?) -> NSImage? {
+        let pointSize = screen.frame.size
+        let pixelSize = displayPixelSize(for: screen)
+        guard let fullImage = renderedAnnotationsOnlyImage(displayID: screen.displayID, pointSize: pointSize, pixelSize: pixelSize) else {
+            return nil
+        }
+
+        return crop(fullImage, to: region, pointSize: pointSize, pixelSize: pixelSize)
+    }
+
+    private func displayPixelSize(for screen: NSScreen) -> CGSize {
+        let displayID = CGDirectDisplayID(screen.displayID)
+        let width = CGDisplayPixelsWide(displayID)
+        let height = CGDisplayPixelsHigh(displayID)
+        if width > 0, height > 0 {
+            return CGSize(width: width, height: height)
+        }
+
+        let scale = screen.backingScaleFactor
+        return CGSize(width: screen.frame.width * scale, height: screen.frame.height * scale)
+    }
+
+    private func crop(_ image: NSImage, to region: CGRect?, pointSize: CGSize, pixelSize: CGSize) -> NSImage? {
+        guard let region else { return image }
+
+        let pixelRegion = ScreenshotGeometry.pixelRect(forRegion: region, pointSize: pointSize, pixelSize: pixelSize)
         let cropped = NSImage(size: pixelRegion.size)
         cropped.lockFocus()
-        fullImage.draw(
+        image.draw(
             in: CGRect(origin: .zero, size: pixelRegion.size),
             from: pixelRegion,
             operation: .copy,
@@ -138,7 +182,7 @@ final class ScreenshotController {
         let scaleY = pixelSize.height / pointSize.height
         context.cgContext.saveGState()
         context.cgContext.scaleBy(x: scaleX, y: scaleY)
-        drawAnnotations(displayID: displayID, pointSize: pointSize)
+        drawAnnotations(displayID: displayID, pointSize: pointSize, includeWhiteboard: true)
         context.cgContext.restoreGState()
 
         let image = NSImage(size: pixelSize)
@@ -146,8 +190,44 @@ final class ScreenshotController {
         return image
     }
 
-    private func drawAnnotations(displayID: UInt32, pointSize: CGSize) {
-        if store.whiteboardModeEnabled {
+    private func renderedAnnotationsOnlyImage(displayID: UInt32, pointSize: CGSize, pixelSize: CGSize) -> NSImage? {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(pixelSize.width),
+            pixelsHigh: Int(pixelSize.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ),
+        let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            return nil
+        }
+
+        let previousContext = NSGraphicsContext.current
+        NSGraphicsContext.current = context
+        defer { NSGraphicsContext.current = previousContext }
+
+        let pixelRect = CGRect(origin: .zero, size: pixelSize)
+        context.cgContext.clear(pixelRect)
+
+        let scaleX = pixelSize.width / pointSize.width
+        let scaleY = pixelSize.height / pointSize.height
+        context.cgContext.saveGState()
+        context.cgContext.scaleBy(x: scaleX, y: scaleY)
+        drawAnnotations(displayID: displayID, pointSize: pointSize, includeWhiteboard: false)
+        context.cgContext.restoreGState()
+
+        let image = NSImage(size: pixelSize)
+        image.addRepresentation(bitmap)
+        return image
+    }
+
+    private func drawAnnotations(displayID: UInt32, pointSize: CGSize, includeWhiteboard: Bool) {
+        if includeWhiteboard, store.whiteboardModeEnabled {
             AnnotationRenderer.drawWhiteboard(in: CGRect(origin: .zero, size: pointSize), background: store.whiteboardBackground)
         }
 
@@ -158,18 +238,7 @@ final class ScreenshotController {
             .forEach(AnnotationRenderer.draw)
     }
 
-    private func pixelRect(for region: CGRect, scaleX: CGFloat, scaleY: CGFloat, bounds: CGRect) -> CGRect {
-        let scaled = CGRect(
-            x: floor(region.minX * scaleX),
-            y: floor(region.minY * scaleY),
-            width: ceil(region.width * scaleX),
-            height: ceil(region.height * scaleY)
-        )
-
-        return scaled.intersection(bounds)
-    }
-
-    private func save(_ image: NSImage) {
+    private func save(_ image: NSImage, renderMode: ScreenshotRenderMode) {
         let folder = preferences.expandedScreenshotFolderURL()
 
         do {
@@ -179,7 +248,7 @@ final class ScreenshotController {
                 return
             }
 
-            let file = try destinationFile(in: folder)
+            let file = try destinationFile(in: folder, renderMode: renderMode)
             try data.write(to: file, options: .atomic)
             lastSavedScreenshotURL = file
 
@@ -193,15 +262,16 @@ final class ScreenshotController {
         }
     }
 
-    private func destinationFile(in folder: URL) throws -> URL {
+    private func destinationFile(in folder: URL, renderMode: ScreenshotRenderMode) throws -> URL {
+        let nameComponent = nameComponent(for: renderMode)
         guard preferences.snapshot.confirmScreenshotFilename else {
-            return ScreenshotNamer.uniqueFileURL(in: folder) { FileManager.default.fileExists(atPath: $0.path) }
+            return ScreenshotNamer.uniqueFileURL(in: folder, nameComponent: nameComponent) { FileManager.default.fileExists(atPath: $0.path) }
         }
 
         let panel = NSSavePanel()
-        panel.title = "Save Screenshot"
+        panel.title = renderMode == .annotationsOnly ? "Save Annotations PNG" : "Save Screenshot"
         panel.directoryURL = folder
-        panel.nameFieldStringValue = ScreenshotNamer.fileName()
+        panel.nameFieldStringValue = ScreenshotNamer.fileName(nameComponent: nameComponent)
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
 
@@ -210,6 +280,15 @@ final class ScreenshotController {
         }
 
         return url
+    }
+
+    private func nameComponent(for renderMode: ScreenshotRenderMode) -> String? {
+        switch renderMode {
+        case .flattened:
+            return nil
+        case .annotationsOnly:
+            return "annotations"
+        }
     }
 
     private func pngData(for image: NSImage) -> Data? {

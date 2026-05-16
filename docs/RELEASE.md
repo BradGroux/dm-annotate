@@ -1,6 +1,6 @@
 # Release Guide
 
-This project can build an unsigned local app bundle from source. Public binary releases should be signed and notarized before distribution.
+This project can build an ad-hoc signed local app bundle from source. Public binary releases should be Developer ID signed and notarized before broad distribution.
 
 ## macOS requirements
 
@@ -34,6 +34,11 @@ swift test
 plutil -lint Packaging/Info.plist
 bash -n scripts/build-app.sh
 bash -n scripts/package-release.sh
+bash -n scripts/verify-release-zip.sh
+bash -n scripts/smoke-ui.sh
+zip_path="$(scripts/verify-release-zip.sh)"
+shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
+test -s "${zip_path}.sha256"
 ```
 
 ## Build an app bundle
@@ -48,7 +53,7 @@ Output:
 .build/Digital Meld Annotate.app
 ```
 
-## Package an unsigned zip
+## Package an ad-hoc signed zip
 
 ```sh
 scripts/package-release.sh
@@ -60,7 +65,29 @@ Output:
 .build/dist/dm-annotate-VERSION-macos.zip
 ```
 
-Unsigned builds are suitable for local testing, not polished end-user distribution.
+Ad-hoc signed builds are suitable for local testing, not polished end-user distribution.
+
+## Verify a release zip
+
+```sh
+scripts/verify-release-zip.sh
+```
+
+Output:
+
+```text
+.build/dist/dm-annotate-VERSION-macos.zip
+```
+
+The verifier packages the app when no zip path is provided, unpacks the archive into a temporary directory, checks bundle metadata against `Packaging/Info.plist`, verifies the code signature, and runs the app executable in launch-verification mode without starting the overlay UI or requesting macOS permissions.
+
+## Run local UI smoke
+
+```sh
+scripts/smoke-ui.sh
+```
+
+The UI smoke command builds a release app bundle when no app path is provided, starts the executable in controlled smoke mode, verifies the toolbar, settings, permissions, and command palette windows can appear, prints a short diagnostic summary, and exits. It does not test screenshot capture because that depends on local macOS Screen Recording consent.
 
 ## Sign
 
@@ -176,6 +203,8 @@ The workflow runs:
 - `plutil -lint Packaging/Info.plist`
 - packaging script syntax checks
 - `scripts/package-release.sh`
+- `scripts/verify-release-zip.sh`
+- `bash -n scripts/smoke-ui.sh`
 - SHA256 generation
 
 It then creates a GitHub Release and attaches:
@@ -229,4 +258,4 @@ When those secrets are present, the release workflow:
 >
 > Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
 
-Homebrew distribution should wait until signed/notarized releases are stable.
+The dedicated `BradGroux/tap` cask is the current Homebrew distribution path. Until signed/notarized releases are stable, keep the developer-preview Gatekeeper note in release docs and release notes.

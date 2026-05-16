@@ -13,7 +13,7 @@
 - Accessibility permission for reliable global shortcuts while another app is active.
 - Input Monitoring may be required by macOS for global keyboard shortcuts, depending on OS version and security settings.
 
-The onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. Reopen it from **Permissions...** in the app menu or menu bar item.
+The onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. It refreshes when you return from System Settings. Reopen it from **Permissions...** in the app menu or menu bar item.
 
 ## Launch
 
@@ -63,7 +63,9 @@ macOS may require:
 - Accessibility: needed for global shortcut reliability and interaction recovery.
 - Input Monitoring: may be needed by macOS for global keyboard handling.
 
-The onboarding window shows current permission status and links to the relevant System Settings panes. Reopen it from **Permissions...** in the app menu or menu bar item.
+The onboarding window shows current permission status, links to the relevant System Settings panes, and refreshes when the app becomes active again after you return from System Settings. Reopen it from **Permissions...** in the app menu or menu bar item.
+
+Consumable global shortcuts use a native macOS event tap so app shortcuts do not leak into the foreground app. If macOS denies that event tap, `dm-annotate` falls back to normal global monitoring; grant Accessibility and confirm Input Monitoring if shortcuts are observed but not consumed.
 
 ## Toolbar
 
@@ -145,8 +147,9 @@ Screenshot actions include:
 
 - Full-display screenshot using the configured default output.
 - Region screenshot with crosshair guide lines while selecting.
-- Copy PNG to clipboard.
-- Save timestamped PNG to disk.
+- Copy flattened PNG to clipboard.
+- Save flattened PNG to disk.
+- Save transparent annotation-only PNG for layering in another editor.
 - Reveal the last saved screenshot in Finder.
 
 The default folder is `~/Downloads`.

@@ -5,8 +5,6 @@ import SwiftUI
 
 @MainActor
 final class ToolbarWindowController: NSObject, NSWindowDelegate {
-    private static let actionButtonCount = 8
-
     private let store: AnnotationStore
     private let preferences: PreferencesController
     private let runtimeState: AppRuntimeState
@@ -83,6 +81,25 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
     func resizeToFit() {
         resizeToFit(using: preferences.snapshot)
+    }
+
+    var isVisible: Bool {
+        panel?.isVisible == true
+    }
+
+    func temporarilyHideForCapture<T>(_ work: () -> T) -> T {
+        let wasVisible = panel?.isVisible == true
+        panel?.orderOut(nil)
+        ToolbarTooltipController.shared.hide()
+        NSApp.updateWindows()
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.03))
+
+        let result = work()
+
+        if wasVisible {
+            panel?.orderFrontRegardless()
+        }
+        return result
     }
 
     private func resizeToFit(using snapshot: PreferencesSnapshot) {
@@ -189,72 +206,11 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
         let visibleFrame = screenForToolbar(using: snapshot)?.visibleFrame ?? NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
 
-        switch snapshot.toolbarOrientation {
-        case .vertical:
-            let availableHeight = max(42, visibleFrame.height - 24)
-            return CGSize(width: 86, height: min(estimatedVerticalToolbarHeight(for: snapshot), availableHeight))
-        case .horizontal:
-            let availableWidth = max(700, visibleFrame.width - 24)
-            return CGSize(width: min(estimatedHorizontalToolbarWidth(for: snapshot), availableWidth), height: 48)
-        }
-    }
-
-    private func estimatedVerticalToolbarHeight(for snapshot: PreferencesSnapshot) -> CGFloat {
-        let outerPadding: CGFloat = 12
-        let contentBottomPadding: CGFloat = 6
-        let stackSpacing: CGFloat = 6
-        let dragHandleHeight: CGFloat = 16
-        let dividerHeight: CGFloat = 5
-        let menuControlHeight: CGFloat = 30
-        let childCount = 10
-        let menuControlCount = 2
-        let topControls = 2 + statusControlCount()
-        let toolControls = snapshot.visibleTools.count
-        let colorControls = min(snapshot.paletteColors.count, 4) + 2
-
-        return outerPadding +
-            dragHandleHeight +
-            gridHeight(itemCount: topControls, columns: 2) +
-            dividerHeight +
-            gridHeight(itemCount: toolControls, columns: 2) +
-            dividerHeight +
-            gridHeight(itemCount: colorControls, columns: 2) +
-            CGFloat(menuControlCount) * menuControlHeight +
-            dividerHeight +
-            gridHeight(itemCount: Self.actionButtonCount, columns: 2) +
-            CGFloat(childCount - 1) * stackSpacing +
-            contentBottomPadding
-    }
-
-    private func estimatedHorizontalToolbarWidth(for snapshot: PreferencesSnapshot) -> CGFloat {
-        let buttonWidth: CGFloat = 30
-        let spacing: CGFloat = 6
-        let outerPadding: CGFloat = 12
-        let dragHandleWidth: CGFloat = 16
-        let dividerWidth: CGFloat = 5
-        let menuControlWidth: CGFloat = 66
-        let menuControlCount = 2
-        let fixedButtons = 2
-        let statusButtons = statusControlCount()
-        let toolButtons = snapshot.visibleTools.count
-        let colorButtons = min(snapshot.paletteColors.count, 4) + 2
-        let actionButtons = Self.actionButtonCount
-        let buttonCount = fixedButtons + statusButtons + toolButtons + colorButtons + actionButtons
-        let elementCount = 1 + buttonCount + 3 + menuControlCount
-
-        return outerPadding +
-            dragHandleWidth +
-            CGFloat(buttonCount) * buttonWidth +
-            CGFloat(3) * dividerWidth +
-            CGFloat(menuControlCount) * menuControlWidth +
-            CGFloat(max(elementCount - 1, 0)) * spacing
-    }
-
-    private func gridHeight(itemCount: Int, columns: Int) -> CGFloat {
-        let rowCount = max(1, Int(ceil(Double(itemCount) / Double(columns))))
-        let buttonHeight: CGFloat = 30
-        let rowSpacing: CGFloat = 6
-        return CGFloat(rowCount) * buttonHeight + CGFloat(max(rowCount - 1, 0)) * rowSpacing
+        return ToolbarLayoutMetrics.preferredSize(
+            for: snapshot,
+            visibleFrame: visibleFrame,
+            statusControlCount: statusControlCount()
+        )
     }
 
     private func statusControlCount() -> Int {
@@ -266,8 +222,10 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         guard let screen = targetScreen else { return frame }
 
         let visible = screen.visibleFrame
-        let x = min(max(frame.origin.x, visible.minX), visible.maxX - frame.width)
-        let y = min(max(frame.origin.y, visible.minY), visible.maxY - frame.height)
+        let maxX = max(visible.minX, visible.maxX - frame.width)
+        let maxY = max(visible.minY, visible.maxY - frame.height)
+        let x = min(max(frame.origin.x, visible.minX), maxX)
+        let y = min(max(frame.origin.y, visible.minY), maxY)
 
         return CGRect(origin: CGPoint(x: x, y: y), size: frame.size)
     }
@@ -338,11 +296,13 @@ struct ToolbarActions {
     var regionScreenshot: () -> Void
     var copyScreenshot: () -> Void
     var saveScreenshot: () -> Void
+    var saveAnnotationsScreenshot: () -> Void
     var revealLastScreenshot: () -> Void
     var showSettings: () -> Void
     var showPermissions: () -> Void
     var toggleAnnotationLock: () -> Void
     var findToolbar: () -> Void
+    var resizeToolbar: () -> Void
 }
 
 final class ToolbarPanel: NSPanel {

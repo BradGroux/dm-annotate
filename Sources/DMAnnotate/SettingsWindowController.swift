@@ -47,6 +47,10 @@ final class SettingsWindowController {
         }
     }
 
+    var isVisible: Bool {
+        window?.isVisible == true
+    }
+
     private func makeWindow(initialSection: SettingsSection) {
         let hostingView = NSHostingView(rootView: settingsView(initialSection: initialSection))
         let window = NSWindow(

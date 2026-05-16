@@ -31,6 +31,10 @@ enum AnnotationRenderer {
         switch annotation.kind {
         case .pen, .highlighter:
             guard let first = annotation.points.first else { return }
+            if annotation.points.count == 1 {
+                drawDot(at: first, color: color, width: path.lineWidth, alpha: annotation.kind == .highlighter ? 0.34 : color.alphaComponent)
+                return
+            }
             path.move(to: first)
             if annotation.points.count > 2 {
                 for index in 1..<(annotation.points.count - 1) {
@@ -101,6 +105,18 @@ enum AnnotationRenderer {
         path.line(to: points[1])
         color.setStroke()
         path.stroke()
+    }
+
+    private static func drawDot(at point: CGPoint, color: NSColor, width: CGFloat, alpha: CGFloat) {
+        let diameter = max(width, 2)
+        let rect = CGRect(
+            x: point.x - diameter / 2,
+            y: point.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+        color.withAlphaComponent(alpha).setFill()
+        NSBezierPath(ovalIn: rect).fill()
     }
 
     private static func drawArrow(_ points: [CGPoint], color: NSColor, width: CGFloat) {

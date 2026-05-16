@@ -6,6 +6,23 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Added
+
+- Added release zip verification and local UI smoke scripts for packaged app validation.
+- Added transparent annotation-only PNG export alongside flattened screenshot output.
+- Added consumable global shortcut handling with local shortcut fallback.
+
+### Changed
+
+- Split toolbar and settings sections into focused SwiftUI views.
+- Updated release docs and generated release notes to reflect ad-hoc, signed, and notarized build states.
+
+### Fixed
+
+- Hide toolbar chrome during screenshot capture.
+- Refresh permission onboarding and toolbar warning state after returning from System Settings.
+- Preserve visible single-click pen/highlighter dots, erase undo ordering, region screenshot Escape handling, and toolbar sizing on narrow displays.
+
 ## 0.1.9 - 2026-05-13
 
 ### Changed

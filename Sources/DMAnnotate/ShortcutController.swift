@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import DMAnnotateCore
 
 @MainActor
@@ -6,8 +7,11 @@ final class ShortcutController {
     private let preferences: PreferencesController
     private let store: AnnotationStore
     private let actions: AppActions
+    private var consumableGlobalMonitor: ConsumableGlobalShortcutMonitor?
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var shortcutPreferencesCancellable: AnyCancellable?
+    private var appActivationCancellables: Set<AnyCancellable> = []
     private var escapeQuitDeadline: Date?
     private let doubleEscapeInterval: TimeInterval = 0.85
 
@@ -20,6 +24,18 @@ final class ShortcutController {
     func start() {
         stop()
 
+        let consumableMonitor = ConsumableGlobalShortcutMonitor(
+            actionsByDescriptor: ShortcutResolver.globallyDispatchableActions(in: preferences.snapshot.shortcuts)
+        ) { [weak self] action in
+            Task { @MainActor in
+                self?.perform(action)
+            }
+        }
+        if consumableMonitor.start() {
+            consumableMonitor.setPassesEventsThrough(NSApp.isActive)
+            consumableGlobalMonitor = consumableMonitor
+        }
+
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             _ = self?.handle(event, scope: .global)
         }
@@ -28,9 +44,35 @@ final class ShortcutController {
             guard let self, handle(event, scope: .local) else { return event }
             return nil
         }
+
+        shortcutPreferencesCancellable = preferences.$snapshot
+            .map(\.shortcuts)
+            .removeDuplicates()
+            .sink { [weak self] shortcuts in
+                self?.consumableGlobalMonitor?.update(
+                    actionsByDescriptor: ShortcutResolver.globallyDispatchableActions(in: shortcuts)
+                )
+            }
+
+        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                self?.consumableGlobalMonitor?.setPassesEventsThrough(true)
+            }
+            .store(in: &appActivationCancellables)
+
+        NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)
+            .sink { [weak self] _ in
+                self?.consumableGlobalMonitor?.setPassesEventsThrough(false)
+            }
+            .store(in: &appActivationCancellables)
     }
 
     func stop() {
+        consumableGlobalMonitor?.stop()
+        consumableGlobalMonitor = nil
+        shortcutPreferencesCancellable = nil
+        appActivationCancellables.removeAll()
+
         if let globalMonitor {
             NSEvent.removeMonitor(globalMonitor)
             self.globalMonitor = nil
@@ -46,13 +88,23 @@ final class ShortcutController {
             return true
         }
 
+        if shouldDeferShortcutToFocusedControl {
+            return false
+        }
+
         let descriptor = ShortcutDescriptor(event: event).normalized
         guard !descriptor.isEmpty else { return false }
+        if scope == .global, !ShortcutText.canDispatchGlobally(descriptor) {
+            return false
+        }
 
-        let shortcuts = preferences.snapshot.shortcuts
-            .mapValues(ShortcutDescriptor.normalize)
-            .filter { ShortcutDescriptor.isValid($0.value) }
-        guard let action = shortcuts.first(where: { $0.value == descriptor })?.key else { return false }
+        guard let action = ShortcutResolver.action(for: descriptor, in: preferences.snapshot.shortcuts) else {
+            if ShortcutResolver.hasConflict(for: descriptor, in: preferences.snapshot.shortcuts) {
+                NSSound.beep()
+                return scope == .local
+            }
+            return false
+        }
 
         perform(action)
         return true
@@ -109,6 +161,13 @@ final class ShortcutController {
         }
 
         return NSApp.keyWindow?.firstResponder is NSTextView
+    }
+
+    private var shouldDeferShortcutToFocusedControl: Bool {
+        guard let firstResponder = NSApp.keyWindow?.firstResponder else { return false }
+        return firstResponder is RecordingShortcutField ||
+            firstResponder is NSTextView ||
+            firstResponder is NSTextField
     }
 
     private func expireEscapeArmIfNeeded() {

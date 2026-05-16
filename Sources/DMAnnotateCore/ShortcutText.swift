@@ -76,4 +76,12 @@ public enum ShortcutText {
     public static func isValid(_ raw: String) -> Bool {
         !normalize(raw).isEmpty
     }
+
+    public static func canDispatchGlobally(_ raw: String) -> Bool {
+        let normalized = normalize(raw)
+        guard !normalized.isEmpty, normalized != "escape" else { return false }
+
+        let modifiers = Set(normalized.split(separator: "+").dropLast().map(String.init))
+        return modifiers.contains("control") || modifiers.contains("option")
+    }
 }

@@ -117,25 +117,30 @@ public final class AnnotationStore: ObservableObject {
         annotations.first { $0.id == id }
     }
 
-    public func update(_ annotation: AnnotationItem) {
-        guard let index = annotations.firstIndex(where: { $0.id == annotation.id }) else { return }
+    @discardableResult
+    public func update(_ annotation: AnnotationItem) -> Bool {
+        guard let index = annotations.firstIndex(where: { $0.id == annotation.id }) else { return false }
         annotations[index] = annotation
+        return true
     }
 
     public func recordMove(from previous: AnnotationItem, to next: AnnotationItem) {
         guard previous.id == next.id, previous != next else { return }
+        guard update(next) else { return }
 
-        update(next)
         undoStack.append(.update(previous: previous, next: next))
         redoStack.removeAll()
         updateHistoryFlags()
     }
 
     public func erase(at point: CGPoint, radius: CGFloat, displayID: UInt32) {
-        let removed = annotations.filter { $0.displayID == displayID && $0.touches(point, radius: radius) }
+        let removed = annotations.enumerated().compactMap { index, item -> RemovedAnnotation? in
+            guard item.displayID == displayID, item.touches(point, radius: radius) else { return nil }
+            return RemovedAnnotation(index: index, item: item)
+        }
         guard !removed.isEmpty else { return }
 
-        let removedIDs = Set(removed.map(\.id))
+        let removedIDs = Set(removed.map(\.item.id))
         annotations.removeAll { removedIDs.contains($0.id) }
         undoStack.append(.remove(removed))
         redoStack.removeAll()
@@ -159,7 +164,7 @@ public final class AnnotationStore: ObservableObject {
         case .add(let item):
             annotations.removeAll { $0.id == item.id }
         case .remove(let items):
-            annotations.append(contentsOf: items)
+            restoreRemoved(items)
         case .clear(let items):
             annotations = items
         case .update(let previous, let next):
@@ -177,7 +182,7 @@ public final class AnnotationStore: ObservableObject {
         case .add(let item):
             annotations.append(item)
         case .remove(let items):
-            let removedIDs = Set(items.map(\.id))
+            let removedIDs = Set(items.map(\.item.id))
             annotations.removeAll { removedIDs.contains($0.id) }
         case .clear:
             annotations.removeAll()
@@ -245,11 +250,23 @@ public final class AnnotationStore: ObservableObject {
         guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
         annotations[index] = annotation
     }
+
+    private func restoreRemoved(_ items: [RemovedAnnotation]) {
+        for removed in items.sorted(by: { $0.index < $1.index }) {
+            let insertionIndex = min(removed.index, annotations.endIndex)
+            annotations.insert(removed.item, at: insertionIndex)
+        }
+    }
+}
+
+private struct RemovedAnnotation {
+    var index: Int
+    var item: AnnotationItem
 }
 
 private enum HistoryAction {
     case add(AnnotationItem)
-    case remove([AnnotationItem])
+    case remove([RemovedAnnotation])
     case clear([AnnotationItem])
     case update(previous: AnnotationItem, next: AnnotationItem)
 }

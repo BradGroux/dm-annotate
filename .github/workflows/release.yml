@@ -53,6 +53,8 @@ jobs:
           plutil -lint Packaging/Info.plist
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
+          bash -n scripts/verify-release-zip.sh
+          bash -n scripts/smoke-ui.sh
 
       - name: Validate signing configuration
         run: |
@@ -105,12 +107,20 @@ jobs:
           NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
           NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
         run: |
-          zip_path="$(scripts/package-release.sh)"
+          zip_path="$(scripts/verify-release-zip.sh)"
           shasum -a 256 "${zip_path}" | tee "${zip_path}.sha256"
+          if [[ -n "${CODESIGN_IDENTITY}" && -n "${NOTARIZE_APPLE_ID}" && -n "${NOTARIZE_PASSWORD}" && -n "${NOTARIZE_TEAM_ID}" ]]; then
+            signing_status="Developer ID signed, notarized, and stapled."
+          elif [[ -n "${CODESIGN_IDENTITY}" ]]; then
+            signing_status="Developer ID signed but not notarized. macOS Gatekeeper may still require manual approval."
+          else
+            signing_status="Ad-hoc signed developer preview. Not notarized; macOS Gatekeeper may require manual approval."
+          fi
 
           {
             echo "zip_path=${zip_path}"
             echo "sha_path=${zip_path}.sha256"
+            echo "signing_status=${signing_status}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Write release notes
@@ -135,11 +145,12 @@ jobs:
           - `swift test`
           - `plutil -lint Packaging/Info.plist`
           - packaging script syntax checks
+          - release zip install and launch smoke verification
           - release zip SHA256 generation
 
           ### Signing status
 
-          This archive is Developer ID signed and notarized when Apple signing secrets are configured. Without those secrets, it is an ad-hoc signed developer preview and macOS Gatekeeper may require manual approval.
+          ${{ steps.package.outputs.signing_status }}
           EOF
 
       - name: Create GitHub release

@@ -84,7 +84,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
             SavedColorPalette(id: palette.id, name: palette.name, colors: Self.normalizedPaletteColors(palette.colors))
         }
         self.visibleTools = Self.normalizedVisibleTools(visibleTools)
-        self.shortcuts = shortcuts.mapValues(ShortcutText.normalize)
+        self.shortcuts = Self.normalizedShortcuts(shortcuts)
         self.whiteboardBackground = whiteboardBackground
     }
 
@@ -145,6 +145,16 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         if normalized.contains(.whiteboard), !normalized.contains(.blackboard) {
             normalized.insert(.blackboard)
         }
+        return normalized
+    }
+
+    public static func normalizedShortcuts(_ shortcuts: [ShortcutAction: String]) -> [ShortcutAction: String] {
+        var normalized = ShortcutAction.defaultShortcuts
+
+        for (action, shortcut) in shortcuts {
+            normalized[action] = shortcut.isEmpty ? "" : ShortcutText.normalize(shortcut)
+        }
+
         return normalized
     }
 

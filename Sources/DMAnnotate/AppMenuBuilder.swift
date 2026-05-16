@@ -19,6 +19,7 @@ private let appMenuName = "Annotate"
     func captureScreenshot()
     func copyScreenshot()
     func saveScreenshot()
+    func saveAnnotationsScreenshot()
     func captureRegionScreenshot()
     func revealLastScreenshot()
     func showPermissions()
@@ -34,6 +35,7 @@ private let appMenuName = "Annotate"
 @MainActor
 struct AppMenuBuilder {
     weak var target: AppMenuActionHandling?
+    var shortcuts: [ShortcutAction: String] = ShortcutAction.defaultShortcuts
 
     func installMainMenu() {
         let mainMenu = NSMenu(title: "Main Menu")
@@ -67,6 +69,7 @@ struct AppMenuBuilder {
         menu.addItem(menuItem("Screenshot", action: #selector(AppMenuActionHandling.captureScreenshot), shortcut: .screenshot))
         menu.addItem(menuItem("Copy Screenshot as PNG", action: #selector(AppMenuActionHandling.copyScreenshot), shortcut: .copyScreenshot))
         menu.addItem(menuItem("Save Screenshot as PNG", action: #selector(AppMenuActionHandling.saveScreenshot), shortcut: .saveScreenshot))
+        menu.addItem(menuItem("Save Annotations as PNG", action: #selector(AppMenuActionHandling.saveAnnotationsScreenshot), key: ""))
         menu.addItem(menuItem("Region Screenshot", action: #selector(AppMenuActionHandling.captureRegionScreenshot), shortcut: .regionScreenshot))
         menu.addItem(menuItem("Reveal Last Screenshot", action: #selector(AppMenuActionHandling.revealLastScreenshot), shortcut: .revealLastScreenshot))
         menu.addItem(.separator())
@@ -114,6 +117,7 @@ struct AppMenuBuilder {
         menu.addItem(menuItem("Region Screenshot", action: #selector(AppMenuActionHandling.captureRegionScreenshot), shortcut: .regionScreenshot))
         menu.addItem(menuItem("Copy Screenshot as PNG", action: #selector(AppMenuActionHandling.copyScreenshot), shortcut: .copyScreenshot))
         menu.addItem(menuItem("Save Screenshot as PNG", action: #selector(AppMenuActionHandling.saveScreenshot), shortcut: .saveScreenshot))
+        menu.addItem(menuItem("Save Annotations as PNG", action: #selector(AppMenuActionHandling.saveAnnotationsScreenshot), key: ""))
         menu.addItem(menuItem("Reveal Last Screenshot", action: #selector(AppMenuActionHandling.revealLastScreenshot), shortcut: .revealLastScreenshot))
         return menu
     }
@@ -215,9 +219,7 @@ struct AppMenuBuilder {
     }
 
     private func keyEquivalent(for action: ShortcutAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
-        guard let shortcut = ShortcutAction.defaultShortcuts[action] else { return nil }
-        let normalized = ShortcutText.normalize(shortcut)
-        guard !normalized.isEmpty else { return nil }
+        guard let normalized = ShortcutResolver.usableShortcut(for: action, in: shortcuts) else { return nil }
 
         let parts = normalized.split(separator: "+").map(String.init)
         guard let key = parts.last else { return nil }

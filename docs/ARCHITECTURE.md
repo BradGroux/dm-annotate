@@ -23,8 +23,10 @@ Tests/
 | `AnnotationRenderer` | AppKit drawing for strokes, shapes, text, laser, whiteboard/blackboard backgrounds |
 | `ToolbarWindowController` | Floating always-on-top toolbar panel |
 | `ToolbarContentView` | SwiftUI toolbar controls and hover help |
+| `ToolbarLayoutMetrics` | Shared toolbar sizing constants and panel size estimates |
 | `ShortcutController` | Local/global shortcut monitors and emergency escape handling |
 | `ScreenshotController` | Full-display and region screenshot capture |
+| `ScreenshotGeometry` | Testable screenshot region-to-pixel geometry |
 | `PreferencesController` | `UserDefaults` persistence and preference side effects |
 | `PermissionOnboardingController` | First-run and manual permission guidance |
 

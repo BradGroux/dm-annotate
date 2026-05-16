@@ -9,6 +9,8 @@
 - [ ] `plutil -lint Packaging/Info.plist`
 - [ ] `bash -n scripts/build-app.sh`
 - [ ] `bash -n scripts/package-release.sh`
+- [ ] `bash -n scripts/verify-release-zip.sh`
+- [ ] `bash -n scripts/smoke-ui.sh`
 
 ## UI checks
 
@@ -20,6 +22,7 @@
 - [ ] Hover tooltips
 - [ ] Escape recovery
 - [ ] Screenshot capture
+- [ ] `scripts/smoke-ui.sh`
 
 ## Notes
 

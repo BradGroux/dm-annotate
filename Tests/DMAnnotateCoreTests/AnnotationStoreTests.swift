@@ -67,7 +67,7 @@ import Testing
     #expect(store.annotations == [otherDisplay, untouched])
 
     store.undo()
-    #expect(store.annotations.contains(touched))
+    #expect(store.annotations == [touched, otherDisplay, untouched])
 }
 
 @Test func preferencesDefaultShortcutsMatchPRD() {
@@ -244,6 +244,28 @@ import Testing
 }
 
 @MainActor
+@Test func recordMoveIgnoresAnnotationsThatAreNotInStore() {
+    let store = AnnotationStore()
+    let original = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 10, y: 20)],
+        color: .red,
+        lineWidth: 3,
+        text: "Missing",
+        fontSize: 24
+    )
+    var moved = original
+    moved.points = [CGPoint(x: 80, y: 120)]
+
+    store.recordMove(from: original, to: moved)
+
+    #expect(store.annotations.isEmpty)
+    #expect(!store.canUndo)
+    #expect(!store.canRedo)
+}
+
+@MainActor
 @Test func strokeWidthKeyboardStepsClampToSupportedWidths() {
     let store = AnnotationStore(strokeWidth: 3)
 
@@ -346,6 +368,47 @@ import Testing
 
     #expect(snapshot.shortcuts[.selectPen] == "control+option+p")
     #expect(snapshot.shortcuts[.selectEraser] == "")
+    #expect(snapshot.shortcuts[.showSettings] == ShortcutAction.defaultShortcuts[.showSettings])
+    #expect(Set(snapshot.shortcuts.keys) == Set(ShortcutAction.allCases))
+}
+
+@Test func shortcutTextSeparatesGlobalSafeShortcutsFromLocalMenuShortcuts() {
+    #expect(ShortcutText.canDispatchGlobally("option+command+a"))
+    #expect(ShortcutText.canDispatchGlobally("control+option+p"))
+
+    #expect(!ShortcutText.canDispatchGlobally("command+z"))
+    #expect(!ShortcutText.canDispatchGlobally("shift+command+z"))
+    #expect(!ShortcutText.canDispatchGlobally("command+k"))
+    #expect(!ShortcutText.canDispatchGlobally("escape"))
+}
+
+@Test func shortcutResolverSuppressesDuplicateAssignments() {
+    let shortcuts: [ShortcutAction: String] = [
+        .commandPalette: "command+k",
+        .showSettings: "cmd+k",
+        .selectPen: "control+option+p"
+    ]
+
+    #expect(ShortcutResolver.duplicateDescriptors(in: shortcuts) == ["command+k"])
+    #expect(ShortcutResolver.action(for: "command+k", in: shortcuts) == nil)
+    #expect(ShortcutResolver.usableShortcut(for: .commandPalette, in: shortcuts) == nil)
+    #expect(ShortcutResolver.usableShortcut(for: .showSettings, in: shortcuts) == nil)
+    #expect(ShortcutResolver.action(for: "control+option+p", in: shortcuts) == .selectPen)
+}
+
+@Test func shortcutResolverBuildsConsumableGlobalActionMap() {
+    var shortcuts = ShortcutAction.defaultShortcuts
+    shortcuts[.selectPen] = "control+option+p"
+    shortcuts[.showSettings] = "command+,"
+    shortcuts[.undo] = "command+z"
+    shortcuts[.selectHighlighter] = "control+option+p"
+
+    let actionsByDescriptor = ShortcutResolver.globallyDispatchableActions(in: shortcuts)
+
+    #expect(actionsByDescriptor["option+command+t"] == .toggleToolbarCollapsed)
+    #expect(actionsByDescriptor["command+,"] == nil)
+    #expect(actionsByDescriptor["command+z"] == nil)
+    #expect(actionsByDescriptor["control+option+p"] == nil)
 }
 
 @Test func screenshotNamerAvoidsSameSecondCollisions() {
@@ -359,4 +422,78 @@ import Testing
     let url = ScreenshotNamer.uniqueFileURL(in: folder, date: date) { existing.contains($0) }
 
     #expect(url.lastPathComponent == ScreenshotNamer.fileName(date: date, suffix: 3))
+}
+
+@Test func screenshotNamerSupportsNamedExportVariants() {
+    let folder = URL(fileURLWithPath: "/tmp", isDirectory: true)
+    let date = Date(timeIntervalSince1970: 1_777_777_777)
+    let existing = Set([
+        folder.appendingPathComponent(ScreenshotNamer.fileName(date: date, nameComponent: "annotations"))
+    ])
+
+    let url = ScreenshotNamer.uniqueFileURL(in: folder, date: date, nameComponent: "annotations") { existing.contains($0) }
+
+    #expect(ScreenshotNamer.fileName(date: date, nameComponent: "annotations").hasSuffix("-annotations.png"))
+    #expect(url.lastPathComponent == ScreenshotNamer.fileName(date: date, nameComponent: "annotations", suffix: 2))
+}
+
+@Test func screenshotGeometryScalesRegionIntoPixelSpace() {
+    let region = CGRect(x: 10.25, y: 20.5, width: 100.25, height: 50.25)
+    let rect = ScreenshotGeometry.pixelRect(
+        forRegion: region,
+        pointSize: CGSize(width: 500, height: 300),
+        pixelSize: CGSize(width: 1_000, height: 600)
+    )
+
+    #expect(rect == CGRect(x: 20, y: 41, width: 201, height: 101))
+}
+
+@Test func screenshotGeometryClampsRegionToPixelBounds() {
+    let rect = ScreenshotGeometry.pixelRect(
+        forRegion: CGRect(x: -20, y: 90, width: 80, height: 80),
+        pointSize: CGSize(width: 100, height: 100),
+        pixelSize: CGSize(width: 200, height: 200)
+    )
+
+    #expect(rect == CGRect(x: 0, y: 180, width: 120, height: 20))
+}
+
+@Test func screenshotGeometryReturnsZeroForInvalidInput() {
+    let rect = ScreenshotGeometry.pixelRect(
+        forRegion: CGRect(x: 0, y: 0, width: 10, height: 10),
+        pointSize: .zero,
+        pixelSize: CGSize(width: 100, height: 100)
+    )
+
+    #expect(rect == .zero)
+}
+
+@Test func toolbarLayoutMetricsClampHorizontalWidthToVisibleFrame() {
+    let snapshot = PreferencesSnapshot(toolbarOrientation: .horizontal)
+    let size = ToolbarLayoutMetrics.preferredSize(
+        for: snapshot,
+        visibleFrame: CGRect(x: 0, y: 0, width: 320, height: 900),
+        statusControlCount: 0
+    )
+
+    #expect(size.width == 296)
+    #expect(size.height == ToolbarLayoutMetrics.horizontalPanelHeight)
+}
+
+@Test func toolbarLayoutMetricsVerticalHeightGrowsForPermissionStatus() {
+    let snapshot = PreferencesSnapshot(toolbarOrientation: .vertical)
+    let visibleFrame = CGRect(x: 0, y: 0, width: 800, height: 1_000)
+    let withoutStatus = ToolbarLayoutMetrics.preferredSize(
+        for: snapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let withStatus = ToolbarLayoutMetrics.preferredSize(
+        for: snapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 1
+    )
+
+    #expect(withStatus.height > withoutStatus.height)
+    #expect(withStatus.width == ToolbarLayoutMetrics.verticalPanelWidth)
 }

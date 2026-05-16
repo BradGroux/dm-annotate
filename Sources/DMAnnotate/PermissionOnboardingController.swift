@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class PermissionOnboardingController {
     private var window: NSWindow?
+    private let viewModel = PermissionOnboardingViewModel()
     private let defaults: UserDefaults
     private let didShowKey = "dmAnnotate.didShowPermissionOnboarding"
 
@@ -18,6 +19,7 @@ final class PermissionOnboardingController {
     }
 
     func show() {
+        viewModel.refresh()
         if window == nil {
             makeWindow()
         }
@@ -27,8 +29,12 @@ final class PermissionOnboardingController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    var isVisible: Bool {
+        window?.isVisible == true
+    }
+
     private func makeWindow() {
-        let root = PermissionOnboardingView {
+        let root = PermissionOnboardingView(viewModel: viewModel) {
             self.window?.close()
         }
         let hostingView = NSHostingView(rootView: root)

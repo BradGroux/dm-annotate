@@ -75,6 +75,13 @@ public enum ScreenshotDestination: String, CaseIterable, Codable, Hashable, Iden
     public var id: String { rawValue }
 }
 
+public enum ScreenshotRenderMode: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
+    case flattened
+    case annotationsOnly
+
+    public var id: String { rawValue }
+}
+
 public enum WhiteboardBackground: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case white
     case black

@@ -25,7 +25,7 @@ The app lets users draw over any Mac app, keep annotations visible during screen
 - Command palette for keyboard-first tools and actions.
 - Undo, redo, clear all, and show/hide annotations.
 - Editable 10-color palette, first-four quick color shortcuts, saved palette reload, default color, stroke width presets, custom stroke width entry, and text style popover.
-- Full-display and region screenshots, copied to clipboard or saved as timestamped PNG, with copy/save/reveal controls.
+- Full-display and region screenshots, copied to clipboard or saved as timestamped PNG, with copy/save/reveal controls and transparent annotation-only PNG export.
 - Customizable shortcuts with conflict detection and disable support.
 - Settings for theme, toolbar orientation, high contrast, toolbar tooltips, visible tools, screenshot destination, colors, and shortcuts.
 - Permission warning in the toolbar, diagnostics view, Safe Mode launch, and abnormal-exit recovery.

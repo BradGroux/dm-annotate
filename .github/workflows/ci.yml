@@ -29,6 +29,11 @@ jobs:
           plutil -lint Packaging/Info.plist
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
+          bash -n scripts/verify-release-zip.sh
+          bash -n scripts/smoke-ui.sh
+          zip_path="$(scripts/verify-release-zip.sh)"
+          shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
+          test -s "${zip_path}.sha256"
 
       - name: Validate Homebrew cask
         env:
