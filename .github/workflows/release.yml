@@ -58,32 +58,29 @@ jobs:
 
       - name: Validate signing configuration
         run: |
-          has_cert="false"
-          has_notary="false"
+          required=(
+            APPLE_DEVELOPER_ID_CERTIFICATE_BASE64
+            APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
+            APPLE_DEVELOPER_IDENTITY
+            APPLE_NOTARIZATION_APPLE_ID
+            APPLE_NOTARIZATION_PASSWORD
+            APPLE_NOTARIZATION_TEAM_ID
+          )
 
-          if [[ -n "${APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}" || -n "${APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}" || -n "${APPLE_DEVELOPER_IDENTITY}" ]]; then
-            has_cert="true"
-            if [[ -z "${APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}" || -z "${APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}" || -z "${APPLE_DEVELOPER_IDENTITY}" ]]; then
-              echo "Developer ID signing requires APPLE_DEVELOPER_ID_CERTIFICATE_BASE64, APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD, and APPLE_DEVELOPER_IDENTITY." >&2
-              exit 1
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("${name}")
             fi
-          fi
+          done
 
-          if [[ -n "${APPLE_NOTARIZATION_APPLE_ID}" || -n "${APPLE_NOTARIZATION_PASSWORD}" || -n "${APPLE_NOTARIZATION_TEAM_ID}" ]]; then
-            has_notary="true"
-            if [[ -z "${APPLE_NOTARIZATION_APPLE_ID}" || -z "${APPLE_NOTARIZATION_PASSWORD}" || -z "${APPLE_NOTARIZATION_TEAM_ID}" ]]; then
-              echo "Notarization requires APPLE_NOTARIZATION_APPLE_ID, APPLE_NOTARIZATION_PASSWORD, and APPLE_NOTARIZATION_TEAM_ID." >&2
-              exit 1
-            fi
-          fi
-
-          if [[ "${has_notary}" == "true" && "${has_cert}" != "true" ]]; then
-            echo "Notarization requires Developer ID signing secrets." >&2
+          if [[ "${#missing[@]}" -gt 0 ]]; then
+            printf 'Signed and notarized releases require these GitHub Actions secrets:\n' >&2
+            printf -- '- %s\n' "${missing[@]}" >&2
             exit 1
           fi
 
       - name: Import Developer ID certificate
-        if: env.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 != ''
         run: |
           certificate_path="${RUNNER_TEMP}/developer-id.p12"
           keychain_path="${RUNNER_TEMP}/app-signing.keychain-db"
@@ -106,16 +103,11 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
           NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
           NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+          REQUIRE_NOTARIZATION: "1"
         run: |
           zip_path="$(scripts/verify-release-zip.sh)"
           shasum -a 256 "${zip_path}" | tee "${zip_path}.sha256"
-          if [[ -n "${CODESIGN_IDENTITY}" && -n "${NOTARIZE_APPLE_ID}" && -n "${NOTARIZE_PASSWORD}" && -n "${NOTARIZE_TEAM_ID}" ]]; then
-            signing_status="Developer ID signed, notarized, and stapled."
-          elif [[ -n "${CODESIGN_IDENTITY}" ]]; then
-            signing_status="Developer ID signed but not notarized. macOS Gatekeeper may still require manual approval."
-          else
-            signing_status="Ad-hoc signed developer preview. Not notarized; macOS Gatekeeper may require manual approval."
-          fi
+          signing_status="Developer ID signed, notarized, stapled, and accepted by Gatekeeper."
 
           {
             echo "zip_path=${zip_path}"

@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Darwin
 import DMAnnotateCore
+import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling {
@@ -77,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             actions: AppActions(
                 toggleToolbarCollapsed: { [weak self] in self?.toolbarWindowController.toggleCollapsed() },
                 toggleToolbarOrientation: { [weak self] in self?.toolbarWindowController.toggleOrientation() },
+                toggleToolbarCompactMode: { [weak self] in self?.toolbarWindowController.toggleCompactMode() },
                 findToolbar: { [weak self] in self?.toolbarWindowController.findToolbar() },
                 screenshot: { [weak self] in self?.screenshotController.captureFullDisplay() },
                 copyScreenshot: { [weak self] in self?.screenshotController.captureFullDisplay(destination: .clipboard) },
@@ -104,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             actions: ToolbarActions(
                 toggleToolbarCollapsed: { [weak self] in self?.toolbarWindowController.toggleCollapsed() },
                 toggleToolbarOrientation: { [weak self] in self?.toolbarWindowController.toggleOrientation() },
+                toggleToolbarCompactMode: { [weak self] in self?.toolbarWindowController.toggleCompactMode() },
                 expandToolbar: { [weak self] in self?.toolbarWindowController.expandToolbar() },
                 screenshot: { [weak self] in self?.screenshotController.captureFullDisplay() },
                 regionScreenshot: { [weak self] in self?.screenshotController.captureRegion() },
@@ -181,6 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         toolbarWindowController.toggleOrientation()
     }
 
+    @objc func toggleToolbarCompactMode() {
+        toolbarWindowController.toggleCompactMode()
+    }
+
     @objc func toggleAnnotationMode() {
         guard !runtimeState.isSafeMode else { return }
         store.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
@@ -200,6 +207,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 
     @objc func clearAll() {
         store.clearAll()
+    }
+
+    @objc func saveAnnotationSession() {
+        let panel = NSSavePanel()
+        panel.title = "Save Annotation Session"
+        panel.nameFieldStringValue = "Digital Meld Annotate Session.dmannotate-session"
+        panel.allowedContentTypes = annotationSessionContentTypes
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try store.sessionDocument().encodedData()
+            try data.write(to: url, options: .atomic)
+        } catch {
+            showError("Annotation session save failed: \(error.localizedDescription)")
+        }
+    }
+
+    @objc func loadAnnotationSession() {
+        let panel = NSOpenPanel()
+        panel.title = "Load Annotation Session"
+        panel.allowedContentTypes = annotationSessionContentTypes
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let session = try AnnotationSessionDocument.decode(from: data)
+                .retargetingMissingDisplays(
+                    availableDisplayIDs: Set(NSScreen.screens.map(\.displayID)),
+                    fallbackDisplayID: NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID ?? 0
+                )
+            store.loadSession(session)
+        } catch {
+            showError("Annotation session load failed: \(error.localizedDescription)")
+        }
     }
 
     @objc func captureScreenshot() {
@@ -341,6 +388,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             CommandPaletteCommand(title: "Clear All", subtitle: "Remove all annotations", systemImage: "trash") { [weak self] in
                 self?.store.clearAll()
             },
+            CommandPaletteCommand(title: "Save Annotation Session", subtitle: "Save annotations to a local file", systemImage: "square.and.arrow.down.on.square") { [weak self] in
+                self?.saveAnnotationSession()
+            },
+            CommandPaletteCommand(title: "Load Annotation Session", subtitle: "Load annotations from a local file", systemImage: "square.and.arrow.up.on.square") { [weak self] in
+                self?.loadAnnotationSession()
+            },
             CommandPaletteCommand(title: "Copy Screenshot as PNG", subtitle: "Copy annotated screenshot to clipboard", systemImage: "doc.on.clipboard") { [weak self] in
                 self?.screenshotController.captureFullDisplay(destination: .clipboard)
             },
@@ -358,6 +411,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             },
             CommandPaletteCommand(title: "Flip Toolbar Orientation", subtitle: "Switch horizontal or vertical toolbar", systemImage: "arrow.up.arrow.down") { [weak self] in
                 self?.toolbarWindowController.toggleOrientation()
+            },
+            CommandPaletteCommand(title: "Compact Presenter Mode", subtitle: "Switch compact toolbar layout", systemImage: "rectangle.compress.vertical") { [weak self] in
+                self?.toolbarWindowController.toggleCompactMode()
             },
             CommandPaletteCommand(title: "Find Toolbar", subtitle: "Pulse the floating toolbar", systemImage: "scope") { [weak self] in
                 self?.toolbarWindowController.findToolbar()
@@ -397,6 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 struct AppActions {
     var toggleToolbarCollapsed: () -> Void
     var toggleToolbarOrientation: () -> Void
+    var toggleToolbarCompactMode: () -> Void
     var findToolbar: () -> Void
     var screenshot: () -> Void
     var copyScreenshot: () -> Void
@@ -407,4 +464,19 @@ struct AppActions {
     var showSettings: () -> Void
     var showCommandPalette: () -> Void
     var quit: () -> Void
+}
+
+private extension AppDelegate {
+    var annotationSessionContentTypes: [UTType] {
+        [UTType(filenameExtension: "dmannotate-session") ?? .json, .json]
+    }
+
+    func showError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Digital Meld Annotate"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
 }

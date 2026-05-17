@@ -20,6 +20,11 @@ struct ToolbarScreenshotActionsView: View {
         iconButton(store.isVisible ? "eye" : "eye.slash", active: false, help: "Show or hide annotations", shortcut: .toggleAnnotationVisibility) {
             store.toggleVisibility()
         }
+        if store.selectedAnnotationID != nil {
+            iconButton("trash.slash", active: true, help: "Delete selected annotation") {
+                store.deleteSelectedAnnotation()
+            }
+        }
         screenshotMenu
         iconButton("crop", active: false, help: "Region screenshot", shortcut: .regionScreenshot) {
             actions.regionScreenshot()

@@ -42,9 +42,9 @@ Annotations are stored in memory as typed values:
 - Arrow
 - Text with content, font size, font weight, and color
 
-The app does not persist annotation sessions in V1. Exiting clears annotations.
+Annotation sessions can be saved to and loaded from local `.dmannotate-session` JSON files. The app preserves annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. Loading retargets annotations to the current main display when a saved display is missing.
 
-Preferences are persisted locally with `UserDefaults`.
+Preferences, including toolbar layout presets, are persisted locally with `UserDefaults`.
 
 ## Window model
 
@@ -55,7 +55,7 @@ The app uses:
 - A floating toolbar panel above normal app content.
 - Region selection windows for screenshot capture.
 
-Cursor mode is click-through. Drawing tools capture pointer input on the overlay.
+Cursor mode is click-through. Select and drawing tools capture pointer input on the overlay.
 
 ## Privacy model
 

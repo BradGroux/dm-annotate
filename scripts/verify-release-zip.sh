@@ -71,6 +71,11 @@ done
 
 codesign --verify --strict --deep --verbose=2 "${APP_PATH}" >&2
 
+if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
+  xcrun stapler validate "${APP_PATH}" >&2
+  spctl -a -vvv -t exec "${APP_PATH}" >&2
+fi
+
 smoke_output="$("${EXECUTABLE_PATH}" --verify-launch)"
 assert_equal "launch verification output" "dm-annotate launch verification OK" "${smoke_output}"
 

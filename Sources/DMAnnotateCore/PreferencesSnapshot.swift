@@ -5,9 +5,11 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
     public var theme: AppTheme
     public var toolbarOrientation: ToolbarOrientation
     public var toolbarCollapsed: Bool
+    public var toolbarCompactMode: Bool
     public var toolbarOriginX: Double
     public var toolbarOriginY: Double
     public var toolbarOriginsByDisplayID: [String: CGPoint]
+    public var toolbarPresets: [ToolbarPreset]
     public var highContrastToolbar: Bool
     public var toolbarTooltipsEnabled: Bool
     public var screenshotOutput: ScreenshotOutput
@@ -26,9 +28,11 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         case theme
         case toolbarOrientation
         case toolbarCollapsed
+        case toolbarCompactMode
         case toolbarOriginX
         case toolbarOriginY
         case toolbarOriginsByDisplayID
+        case toolbarPresets
         case highContrastToolbar
         case toolbarTooltipsEnabled
         case screenshotOutput
@@ -48,9 +52,11 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         theme: AppTheme = .system,
         toolbarOrientation: ToolbarOrientation = .vertical,
         toolbarCollapsed: Bool = false,
+        toolbarCompactMode: Bool = false,
         toolbarOriginX: Double = 24,
         toolbarOriginY: Double = 220,
         toolbarOriginsByDisplayID: [String: CGPoint] = [:],
+        toolbarPresets: [ToolbarPreset] = [],
         highContrastToolbar: Bool = false,
         toolbarTooltipsEnabled: Bool = true,
         screenshotOutput: ScreenshotOutput = .file,
@@ -68,9 +74,11 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         self.theme = theme
         self.toolbarOrientation = toolbarOrientation
         self.toolbarCollapsed = toolbarCollapsed
+        self.toolbarCompactMode = toolbarCompactMode
         self.toolbarOriginX = toolbarOriginX
         self.toolbarOriginY = toolbarOriginY
         self.toolbarOriginsByDisplayID = toolbarOriginsByDisplayID
+        self.toolbarPresets = toolbarPresets
         self.highContrastToolbar = highContrastToolbar
         self.toolbarTooltipsEnabled = toolbarTooltipsEnabled
         self.screenshotOutput = screenshotOutput
@@ -98,9 +106,11 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
             theme: try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system,
             toolbarOrientation: try container.decodeIfPresent(ToolbarOrientation.self, forKey: .toolbarOrientation) ?? .vertical,
             toolbarCollapsed: try container.decodeIfPresent(Bool.self, forKey: .toolbarCollapsed) ?? false,
+            toolbarCompactMode: try container.decodeIfPresent(Bool.self, forKey: .toolbarCompactMode) ?? false,
             toolbarOriginX: try container.decodeIfPresent(Double.self, forKey: .toolbarOriginX) ?? 24,
             toolbarOriginY: try container.decodeIfPresent(Double.self, forKey: .toolbarOriginY) ?? 220,
             toolbarOriginsByDisplayID: try container.decodeIfPresent([String: CGPoint].self, forKey: .toolbarOriginsByDisplayID) ?? [:],
+            toolbarPresets: try container.decodeIfPresent([ToolbarPreset].self, forKey: .toolbarPresets) ?? [],
             highContrastToolbar: try container.decodeIfPresent(Bool.self, forKey: .highContrastToolbar) ?? false,
             toolbarTooltipsEnabled: try container.decodeIfPresent(Bool.self, forKey: .toolbarTooltipsEnabled) ?? true,
             screenshotOutput: try container.decodeIfPresent(ScreenshotOutput.self, forKey: .screenshotOutput) ?? .file,
@@ -198,6 +208,36 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         syncQuickColors()
     }
 
+    public mutating func saveToolbarPreset(named name: String) {
+        toolbarPresets.append(
+            ToolbarPreset(
+                name: name,
+                orientation: toolbarOrientation,
+                collapsed: toolbarCollapsed,
+                compactMode: toolbarCompactMode,
+                origin: toolbarOrigin,
+                originsByDisplayID: toolbarOriginsByDisplayID
+            )
+        )
+    }
+
+    public mutating func applyToolbarPreset(_ preset: ToolbarPreset, availableDisplayIDs: Set<String> = []) {
+        toolbarOrientation = preset.orientation
+        toolbarCollapsed = preset.collapsed
+        toolbarCompactMode = preset.compactMode
+        toolbarOrigin = preset.origin
+
+        if availableDisplayIDs.isEmpty {
+            toolbarOriginsByDisplayID = preset.originsByDisplayID
+        } else {
+            toolbarOriginsByDisplayID = preset.originsByDisplayID.filter { availableDisplayIDs.contains($0.key) }
+        }
+    }
+
+    public mutating func deleteToolbarPreset(id: ToolbarPreset.ID) {
+        toolbarPresets.removeAll { $0.id == id }
+    }
+
     private mutating func syncQuickColors() {
         quickColors = Array(paletteColors.prefix(4))
     }
@@ -207,9 +247,11 @@ public extension ShortcutAction {
     static let defaultShortcuts: [ShortcutAction: String] = [
         .toggleToolbarCollapsed: "option+command+t",
         .toggleToolbarOrientation: "option+command+o",
+        .toggleToolbarCompactMode: "option+command+m",
         .findToolbar: "option+command+f",
         .toggleAnnotationMode: "option+command+a",
         .cursorMode: "escape",
+        .selectTool: "control+option+s",
         .selectPen: "control+option+p",
         .selectHighlighter: "control+option+h",
         .selectEraser: "control+option+e",

@@ -20,6 +20,8 @@ struct ToolbarContentView: View {
         Group {
             if preferences.snapshot.toolbarCollapsed {
                 collapsedBody
+            } else if preferences.snapshot.toolbarCompactMode {
+                compactBody
             } else if preferences.snapshot.toolbarOrientation == .vertical {
                 verticalBody
             } else {
@@ -71,6 +73,7 @@ struct ToolbarContentView: View {
 
                 LazyVGrid(columns: compactColumns, spacing: ToolbarLayoutMetrics.gridSpacing) {
                     orientationToggle
+                    compactModeToggle
                     collapseToggle
                     statusControls
                 }
@@ -102,6 +105,7 @@ struct ToolbarContentView: View {
             HStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
                 dragBar
                 orientationToggle
+                compactModeToggle
                 collapseToggle
                 statusControls
                 verticalDivider
@@ -126,6 +130,33 @@ struct ToolbarContentView: View {
         .contentShape(Rectangle())
         .toolbarHelp("Drag toolbar")
         .accessibilityLabel("Drag toolbar")
+    }
+
+    private var compactBody: some View {
+        Group {
+            if preferences.snapshot.toolbarOrientation == .vertical {
+                compactVerticalBody
+            } else {
+                compactHorizontalBody
+            }
+        }
+    }
+
+    private var compactVerticalBody: some View {
+        VStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
+            dragBar
+            LazyVGrid(columns: compactColumns, spacing: ToolbarLayoutMetrics.gridSpacing) {
+                compactControls
+            }
+        }
+        .frame(width: ToolbarLayoutMetrics.verticalContentWidth)
+    }
+
+    private var compactHorizontalBody: some View {
+        HStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
+            dragBar
+            compactControls
+        }
     }
 
     private var collapsedDragBar: some View {
@@ -193,6 +224,133 @@ struct ToolbarContentView: View {
         .accessibilityLabel("Collapse toolbar")
     }
 
+    private var compactModeToggle: some View {
+        Button {
+            actions.toggleToolbarCompactMode()
+        } label: {
+            toolbarIcon(preferences.snapshot.toolbarCompactMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+        }
+        .buttonStyle(toolbarButtonStyle(active: preferences.snapshot.toolbarCompactMode))
+        .toolbarHelp(tooltip(preferences.snapshot.toolbarCompactMode ? "Expand presenter toolbar" : "Compact presenter toolbar", action: .toggleToolbarCompactMode))
+        .accessibilityLabel("Compact presenter toolbar")
+    }
+
+    @ViewBuilder private var compactControls: some View {
+        compactModeToggle
+        statusControls
+        compactCursorButton
+        compactToolMenu
+        compactColorMenu
+        compactStrokeStepper
+        compactUndoButton
+        compactDeleteButton
+    }
+
+    private var compactCursorButton: some View {
+        Button {
+            store.exitScreenControls()
+        } label: {
+            toolbarIcon("cursorarrow")
+        }
+        .buttonStyle(toolbarButtonStyle(active: store.activeTool == .cursor && !store.whiteboardModeEnabled))
+        .toolbarHelp(tooltip("Cursor mode", action: .cursorMode))
+        .accessibilityLabel("Cursor mode")
+    }
+
+    private var compactToolMenu: some View {
+        Menu {
+            ForEach(AnnotationTool.allCases.filter { $0 != .cursor && preferences.snapshot.visibleTools.contains($0) }) { tool in
+                Button {
+                    store.setActiveTool(tool)
+                } label: {
+                    Label(tool.displayName, systemImage: tool.systemImageName)
+                }
+            }
+        } label: {
+            toolbarIcon(activeToolIcon)
+        }
+        .buttonStyle(toolbarButtonStyle(active: store.activeTool != .cursor || store.whiteboardModeEnabled))
+        .toolbarHelp("Active tool: \(activeToolName)")
+        .accessibilityLabel("Active annotation tool")
+    }
+
+    private var compactColorMenu: some View {
+        Menu {
+            ForEach(Array(preferences.snapshot.paletteColors.enumerated()), id: \.offset) { index, color in
+                Button {
+                    store.setCurrentColor(color)
+                } label: {
+                    Text("Color \(index + 1)")
+                }
+            }
+
+            Button {
+                ToolbarColorPanelController.shared.show(currentColor: store.currentColor, store: store)
+            } label: {
+                Label("Custom Color", systemImage: "eyedropper")
+            }
+        } label: {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(store.currentColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                )
+                .frame(width: ToolbarLayoutMetrics.buttonSize, height: ToolbarLayoutMetrics.buttonSize)
+        }
+        .buttonStyle(.plain)
+        .toolbarHelp(tooltip("Current color", action: .customColor))
+        .accessibilityLabel("Current color")
+    }
+
+    private var compactStrokeStepper: some View {
+        Menu {
+            Button("Decrease") {
+                store.decreaseStrokeWidth()
+            }
+            Button("Increase") {
+                store.increaseStrokeWidth()
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Image(systemName: "lineweight")
+                Text("\(Int(store.strokeWidth))")
+                    .font(.caption2.weight(.bold))
+            }
+            .frame(width: ToolbarLayoutMetrics.buttonSize, height: ToolbarLayoutMetrics.buttonSize)
+        }
+        .buttonStyle(toolbarButtonStyle(active: false))
+        .toolbarHelp("Stroke width \(Int(store.strokeWidth)) px")
+        .accessibilityLabel("Stroke width")
+    }
+
+    private var compactUndoButton: some View {
+        Button {
+            store.undo()
+        } label: {
+            toolbarIcon("arrow.uturn.backward")
+        }
+        .buttonStyle(toolbarButtonStyle(active: false))
+        .disabled(!store.canUndo)
+        .toolbarHelp(tooltip("Undo", action: .undo))
+        .accessibilityLabel("Undo")
+    }
+
+    private var compactDeleteButton: some View {
+        Button {
+            if store.selectedAnnotationID != nil {
+                store.deleteSelectedAnnotation()
+            } else {
+                store.clearAll()
+            }
+        } label: {
+            toolbarIcon(store.selectedAnnotationID == nil ? "trash" : "trash.slash")
+        }
+        .buttonStyle(toolbarButtonStyle(active: store.selectedAnnotationID != nil))
+        .toolbarHelp(store.selectedAnnotationID == nil ? tooltip("Clear all", action: .clearAll) : "Delete selected annotation")
+        .accessibilityLabel(store.selectedAnnotationID == nil ? "Clear all" : "Delete selected annotation")
+    }
+
     @ViewBuilder private var toolButtons: some View {
         ToolbarToolSelectionView(store: store, preferences: preferences, runtimeState: runtimeState)
     }
@@ -240,5 +398,19 @@ struct ToolbarContentView: View {
 
     private func refreshPermissionSummary() {
         permissionSummary = PermissionSummary.current()
+    }
+
+    private var activeToolIcon: String {
+        if store.whiteboardModeEnabled {
+            return store.whiteboardBackground == .black || store.whiteboardBackground == .darkGrid ? AnnotationTool.blackboard.systemImageName : AnnotationTool.whiteboard.systemImageName
+        }
+        return store.activeTool.systemImageName
+    }
+
+    private var activeToolName: String {
+        if store.whiteboardModeEnabled {
+            return store.whiteboardBackground == .black || store.whiteboardBackground == .darkGrid ? AnnotationTool.blackboard.displayName : AnnotationTool.whiteboard.displayName
+        }
+        return store.activeTool.displayName
     }
 }

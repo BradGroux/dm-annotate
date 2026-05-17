@@ -4,6 +4,7 @@ extension AnnotationTool {
     var systemImageName: String {
         switch self {
         case .cursor: "cursorarrow"
+        case .select: "arrow.up.left.and.down.right.magnifyingglass"
         case .pen: "pencil.tip"
         case .highlighter: "highlighter"
         case .eraser: "eraser"

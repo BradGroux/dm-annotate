@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsGeneralSectionView: View {
     @ObservedObject var store: AnnotationStore
     @ObservedObject var preferences: PreferencesController
+    @State private var presetName = "Toolbar Preset"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -34,8 +35,52 @@ struct SettingsGeneralSectionView: View {
                 SettingsRow("Behavior") {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Collapse toolbar", isOn: binding(\.toolbarCollapsed))
+                        Toggle("Compact presenter mode", isOn: binding(\.toolbarCompactMode))
                         Toggle("High contrast toolbar", isOn: binding(\.highContrastToolbar))
                         Toggle("Show toolbar tooltips", isOn: binding(\.toolbarTooltipsEnabled))
+                    }
+                }
+
+                SettingsRow("Presets") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            TextField("Preset name", text: $presetName)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                            Button {
+                                saveToolbarPreset()
+                            } label: {
+                                Label("Save", systemImage: "tray.and.arrow.down")
+                            }
+                        }
+
+                        if preferences.snapshot.toolbarPresets.isEmpty {
+                            Text("No toolbar presets")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(preferences.snapshot.toolbarPresets) { preset in
+                                    HStack(spacing: 8) {
+                                        Text(preset.name)
+                                            .lineLimit(1)
+                                            .frame(width: 190, alignment: .leading)
+                                        Button {
+                                            applyToolbarPreset(preset)
+                                        } label: {
+                                            Label("Apply", systemImage: "arrow.down.left.and.arrow.up.right")
+                                        }
+                                        Button {
+                                            preferences.update { $0.deleteToolbarPreset(id: preset.id) }
+                                        } label: {
+                                            Image(systemName: "trash")
+                                        }
+                                        .accessibilityLabel("Delete toolbar preset")
+                                    }
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -99,6 +144,21 @@ struct SettingsGeneralSectionView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             preferences.update { $0.screenshotFolder = url.path }
+        }
+    }
+
+    private func saveToolbarPreset() {
+        let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+        preferences.update { snapshot in
+            snapshot.saveToolbarPreset(named: name.isEmpty ? "Toolbar Preset \(snapshot.toolbarPresets.count + 1)" : name)
+        }
+        presetName = "Toolbar Preset \(preferences.snapshot.toolbarPresets.count + 1)"
+    }
+
+    private func applyToolbarPreset(_ preset: ToolbarPreset) {
+        let displays = Set(NSScreen.screens.map { "\($0.displayID)" })
+        preferences.update { snapshot in
+            snapshot.applyToolbarPreset(preset, availableDisplayIDs: displays)
         }
     }
 

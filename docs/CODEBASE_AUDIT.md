@@ -31,14 +31,14 @@ Strengths:
 - Text move history no longer records phantom undo actions for annotations that are not in the store.
 - CI now smoke-packages the release zip, not just shell-syntax checks the packaging scripts.
 - Docs now describe local builds as ad-hoc signed but not notarized, matching the scripts.
-- Release notes now record the actual signing/notarization status for each generated release.
+- Release notes now record notarized release verification status for generated release artifacts.
 - Screenshot region-to-pixel math now lives in a core helper with unit coverage for Retina scaling, bounds clamping, and invalid geometry.
 - Toolbar sizing constants now live in one app-level layout helper shared by SwiftUI toolbar controls and the AppKit panel frame estimator.
 - Shortcut conflict handling now has a core resolver shared by runtime dispatch, settings diagnostics, and menu key equivalents.
 - Toolbar layout metrics now have unit coverage for horizontal clamping and permission-status height changes.
 - Permission status changes now request a toolbar resize, keeping the AppKit panel estimate aligned with SwiftUI content after returning from System Settings.
 - Release docs now include the same package smoke and SHA256 checks that CI runs.
-- Release workflow signing notes now distinguish ad-hoc, Developer ID signed only, and Developer ID signed plus notarized builds.
+- Release workflow signing notes now distinguish local ad-hoc builds from required signed/notarized tag releases.
 - Release zip verification now installs the generated archive into a temporary directory, checks bundle metadata and signatures, and runs a permission-free launch smoke mode.
 - Local UI smoke now verifies toolbar, settings, permissions, and command palette windows can appear from a packaged app startup path.
 - Permission onboarding now refreshes when reopened or when the app becomes active after returning from System Settings, with a direct next-step prompt.
@@ -46,13 +46,17 @@ Strengths:
 - Settings sections now live in focused SwiftUI views with shared form components, leaving `SettingsView` responsible for navigation and layout shell only.
 - Toolbar tool selection, stroke/text controls, screenshot actions, and shared button/tooltip styles now live in focused SwiftUI views.
 - Screenshot export now supports transparent annotation-only PNGs alongside the default flattened annotated screenshots.
+- Annotation sessions now save and load local `.dmannotate-session` files with safe display retargeting.
+- Select mode now supports placed annotation move, delete, recolor, stroke sizing, and text style edits with undo/redo.
+- Toolbar layout presets now save and apply local display-aware toolbar layouts.
+- Compact presenter mode now exposes the active tool, color, stroke width, undo, delete/clear, and cursor controls in a smaller toolbar.
+- Tagged GitHub releases now require Developer ID signing and notarization secrets, validate the stapled ticket, and run Gatekeeper acceptance checks before publishing artifacts.
 
 ## Remaining Refactor Targets
 
 
 ## Improvement Backlog
 
-- Add optional session save/load for annotation sets while keeping local-only storage.
-- Add shape editing after placement: move, resize, recolor, and delete individual annotations.
-- Add per-display toolbar presets for common presentation setups.
-- Add a compact presenter mode with only the active tool, color, width, undo, and cursor controls.
+- Add signed-release secret values in GitHub Actions before cutting the next public tag.
+- Add richer resize handles for direct mouse resizing of selected shapes.
+- Add UI smoke assertions for session menus, compact toolbar mode, and toolbar preset settings once window-level automation is practical in CI.

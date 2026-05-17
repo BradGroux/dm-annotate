@@ -11,6 +11,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private weak var activeTextView: NSTextView?
     private var activeTextOrigin: CGPoint?
     private var textMove: TextMove?
+    private var annotationMove: AnnotationMove?
 
     private let minimumTextEditorSize = CGSize(width: 220, height: 38)
     private let maximumTextEditorHeight: CGFloat = 280
@@ -46,6 +47,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if store.activeTool == .cursor {
             preview = nil
             textMove = nil
+            annotationMove = nil
             activeTextView?.removeFromSuperview()
             activeTextView = nil
             activeTextOrigin = nil
@@ -62,7 +64,12 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
         store.annotations
             .filter { $0.displayID == displayID }
-            .forEach(AnnotationRenderer.draw)
+            .forEach { annotation in
+                AnnotationRenderer.draw(annotation)
+                if annotation.id == store.selectedAnnotationID {
+                    AnnotationRenderer.drawSelection(annotation)
+                }
+            }
 
         if let preview {
             AnnotationRenderer.draw(preview)
@@ -89,6 +96,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         switch store.activeTool {
         case .cursor:
             return
+        case .select:
+            beginAnnotationSelection(at: point)
         case .pen:
             preview = AnnotationItem(displayID: displayID, kind: .pen, points: [point], color: store.currentColor, lineWidth: store.strokeWidth)
         case .highlighter:
@@ -122,6 +131,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         let point = convert(event.locationInWindow, from: nil)
 
         switch store.activeTool {
+        case .select:
+            moveSelectedAnnotation(to: point)
         case .pen, .highlighter:
             preview?.points.append(point)
         case .line, .rectangle, .ellipse, .arrow:
@@ -147,6 +158,8 @@ final class OverlayView: NSView, NSTextViewDelegate {
         switch store.activeTool {
         case .laser:
             appendLaserPoint(point)
+        case .select:
+            annotation(at: point) == nil ? NSCursor.arrow.set() : NSCursor.openHand.set()
         case .text:
             textAnnotation(at: point) == nil ? NSCursor.iBeam.set() : NSCursor.openHand.set()
         default:
@@ -155,6 +168,16 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let annotationMove {
+            if let updated = store.annotation(id: annotationMove.original.id) {
+                store.recordMove(from: annotationMove.original, to: updated)
+            }
+            self.annotationMove = nil
+            NSCursor.openHand.set()
+            needsDisplay = true
+            return
+        }
+
         if let textMove {
             if let updated = store.annotation(id: textMove.original.id) {
                 store.recordMove(from: textMove.original, to: updated)
@@ -183,11 +206,48 @@ final class OverlayView: NSView, NSTextViewDelegate {
         }
 
         if event.keyCode == 53 {
+            if store.selectedAnnotationID != nil {
+                store.clearSelection()
+                needsDisplay = true
+                return
+            }
             store.exitScreenControls()
             return
         }
 
+        if event.keyCode == 51 || event.keyCode == 117 {
+            if store.deleteSelectedAnnotation() {
+                needsDisplay = true
+                return
+            }
+        }
+
         super.keyDown(with: event)
+    }
+
+    private func beginAnnotationSelection(at point: CGPoint) {
+        guard let annotation = annotation(at: point) else {
+            store.clearSelection()
+            annotationMove = nil
+            NSCursor.arrow.set()
+            return
+        }
+
+        store.selectAnnotation(id: annotation.id)
+        annotationMove = AnnotationMove(original: annotation, referencePoint: point)
+        NSCursor.closedHand.set()
+    }
+
+    private func moveSelectedAnnotation(to point: CGPoint) {
+        guard let annotationMove else { return }
+        let dx = point.x - annotationMove.referencePoint.x
+        let dy = point.y - annotationMove.referencePoint.y
+        var updated = store.annotation(id: annotationMove.original.id) ?? annotationMove.original
+        updated.points = annotationMove.original.points.map { originalPoint in
+            CGPoint(x: originalPoint.x + dx, y: originalPoint.y + dy)
+        }
+        store.update(updated)
+        NSCursor.closedHand.set()
     }
 
     private func beginTextEntry(at point: CGPoint) {
@@ -260,11 +320,15 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     private func textAnnotation(at point: CGPoint) -> AnnotationItem? {
+        annotation(at: point, matching: { $0.kind == .text })
+    }
+
+    private func annotation(at point: CGPoint, matching predicate: (AnnotationItem) -> Bool = { _ in true }) -> AnnotationItem? {
         store.annotations
             .reversed()
             .first {
                 $0.displayID == displayID &&
-                    $0.kind == .text &&
+                    predicate($0) &&
                     $0.touches(point, radius: 2)
             }
     }
@@ -404,4 +468,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
 private struct TextMove {
     var original: AnnotationItem
     var dragOffset: CGPoint
+}
+
+private struct AnnotationMove {
+    var original: AnnotationItem
+    var referencePoint: CGPoint
 }

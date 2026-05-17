@@ -181,12 +181,16 @@ final class ShortcutController {
             actions.toggleToolbarCollapsed()
         case .toggleToolbarOrientation:
             actions.toggleToolbarOrientation()
+        case .toggleToolbarCompactMode:
+            actions.toggleToolbarCompactMode()
         case .findToolbar:
             actions.findToolbar()
         case .toggleAnnotationMode:
             store.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
         case .cursorMode:
             store.exitScreenControls()
+        case .selectTool:
+            store.setActiveTool(.select)
         case .selectPen:
             store.setActiveTool(.pen)
         case .selectHighlighter:

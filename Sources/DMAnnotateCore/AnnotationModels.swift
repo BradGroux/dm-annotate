@@ -3,6 +3,7 @@ import Foundation
 
 public enum AnnotationTool: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case cursor
+    case select
     case pen
     case highlighter
     case eraser
@@ -20,6 +21,7 @@ public enum AnnotationTool: String, CaseIterable, Codable, Hashable, Identifiabl
     public var displayName: String {
         switch self {
         case .cursor: "Cursor"
+        case .select: "Select"
         case .pen: "Pen"
         case .highlighter: "Highlighter"
         case .eraser: "Eraser"
@@ -94,9 +96,11 @@ public enum WhiteboardBackground: String, CaseIterable, Codable, Hashable, Ident
 public enum ShortcutAction: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case toggleToolbarCollapsed
     case toggleToolbarOrientation
+    case toggleToolbarCompactMode
     case findToolbar
     case toggleAnnotationMode
     case cursorMode
+    case selectTool
     case selectPen
     case selectHighlighter
     case selectEraser
@@ -134,9 +138,11 @@ public enum ShortcutAction: String, CaseIterable, Codable, Hashable, Identifiabl
         switch self {
         case .toggleToolbarCollapsed: "Collapse/Expand Toolbar"
         case .toggleToolbarOrientation: "Switch Toolbar Orientation"
+        case .toggleToolbarCompactMode: "Compact Presenter Mode"
         case .findToolbar: "Find Toolbar"
         case .toggleAnnotationMode: "Toggle Annotation Mode"
         case .cursorMode: "Cursor Mode"
+        case .selectTool: "Select Tool"
         case .selectPen: "Pen Tool"
         case .selectHighlighter: "Highlighter Tool"
         case .selectEraser: "Eraser Tool"
@@ -175,6 +181,7 @@ public extension ShortcutAction {
     static func toolAction(for tool: AnnotationTool) -> ShortcutAction? {
         switch tool {
         case .cursor: .cursorMode
+        case .select: .selectTool
         case .pen: .selectPen
         case .highlighter: .selectHighlighter
         case .eraser: .selectEraser
@@ -240,6 +247,34 @@ public struct SavedColorPalette: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+public struct ToolbarPreset: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var orientation: ToolbarOrientation
+    public var collapsed: Bool
+    public var compactMode: Bool
+    public var origin: CGPoint
+    public var originsByDisplayID: [String: CGPoint]
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        orientation: ToolbarOrientation,
+        collapsed: Bool,
+        compactMode: Bool,
+        origin: CGPoint,
+        originsByDisplayID: [String: CGPoint]
+    ) {
+        self.id = id
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Toolbar Preset" : name
+        self.orientation = orientation
+        self.collapsed = collapsed
+        self.compactMode = compactMode
+        self.origin = origin
+        self.originsByDisplayID = originsByDisplayID
+    }
+}
+
 public enum TextFontWeight: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case regular
     case medium
@@ -260,7 +295,7 @@ public enum TextFontWeight: String, CaseIterable, Codable, Hashable, Identifiabl
     }
 }
 
-public struct AnnotationItem: Identifiable, Equatable, Sendable {
+public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
     public var displayID: UInt32
     public var kind: AnnotationKind
@@ -321,6 +356,100 @@ public struct AnnotationItem: Identifiable, Equatable, Sendable {
             return points.lineSegmentsContain(point, tolerance: max(radius, lineWidth))
         case .rectangle, .ellipse, .text:
             return boundingRect.expanded(by: radius).contains(point)
+        }
+    }
+}
+
+public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
+    public static let currentVersion = 1
+
+    public var version: Int
+    public var createdAt: Date
+    public var annotations: [AnnotationItem]
+    public var currentColor: RGBAColor
+    public var strokeWidth: CGFloat
+    public var textFontSize: CGFloat
+    public var textFontWeight: TextFontWeight
+    public var isVisible: Bool
+    public var annotationsLocked: Bool
+    public var whiteboardModeEnabled: Bool
+    public var whiteboardBackground: WhiteboardBackground
+
+    public init(
+        version: Int = currentVersion,
+        createdAt: Date = Date(),
+        annotations: [AnnotationItem],
+        currentColor: RGBAColor,
+        strokeWidth: CGFloat,
+        textFontSize: CGFloat,
+        textFontWeight: TextFontWeight,
+        isVisible: Bool,
+        annotationsLocked: Bool,
+        whiteboardModeEnabled: Bool,
+        whiteboardBackground: WhiteboardBackground
+    ) {
+        self.version = version
+        self.createdAt = createdAt
+        self.annotations = annotations
+        self.currentColor = currentColor
+        self.strokeWidth = AnnotationStore.normalizedStrokeWidth(strokeWidth)
+        self.textFontSize = AnnotationStore.normalizedTextFontSize(textFontSize)
+        self.textFontWeight = textFontWeight
+        self.isVisible = isVisible
+        self.annotationsLocked = annotationsLocked
+        self.whiteboardModeEnabled = whiteboardModeEnabled
+        self.whiteboardBackground = whiteboardBackground
+    }
+
+    public func validated() throws -> AnnotationSessionDocument {
+        guard version == Self.currentVersion else {
+            throw AnnotationSessionError.unsupportedVersion(version)
+        }
+
+        var copy = self
+        copy.annotations = annotations.filter { !$0.points.isEmpty }
+        copy.strokeWidth = AnnotationStore.normalizedStrokeWidth(strokeWidth)
+        copy.textFontSize = AnnotationStore.normalizedTextFontSize(textFontSize)
+        return copy
+    }
+
+    public func retargetingMissingDisplays(
+        availableDisplayIDs: Set<UInt32>,
+        fallbackDisplayID: UInt32
+    ) -> AnnotationSessionDocument {
+        guard !availableDisplayIDs.isEmpty else { return self }
+
+        var copy = self
+        copy.annotations = annotations.map { annotation in
+            guard !availableDisplayIDs.contains(annotation.displayID) else { return annotation }
+            var retargeted = annotation
+            retargeted.displayID = fallbackDisplayID
+            return retargeted
+        }
+        return copy
+    }
+
+    public func encodedData() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(self)
+    }
+
+    public static func decode(from data: Data) throws -> AnnotationSessionDocument {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(AnnotationSessionDocument.self, from: data).validated()
+    }
+}
+
+public enum AnnotationSessionError: LocalizedError, Equatable {
+    case unsupportedVersion(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unsupportedVersion(let version):
+            "Unsupported annotation session version \(version)."
         }
     }
 }

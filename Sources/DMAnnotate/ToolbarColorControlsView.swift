@@ -29,7 +29,7 @@ struct ToolbarColorControlsView: View {
     @ViewBuilder private var controls: some View {
         ForEach(Array(preferences.snapshot.paletteColors.prefix(4).enumerated()), id: \.offset) { index, color in
             Button {
-                store.currentColor = color
+                store.setCurrentColor(color)
             } label: {
                 Circle()
                     .fill(Color(color))
@@ -70,7 +70,7 @@ struct ToolbarColorControlsView: View {
                     Button {
                         ToolbarTooltipController.shared.hide()
                         selectedPaletteIndex = index
-                        store.currentColor = color
+                        store.setCurrentColor(color)
                     } label: {
                         colorSwatch(color, selected: selectedPaletteIndex == index, size: 24)
                             .frame(width: 30, height: 30)
@@ -200,7 +200,7 @@ struct ToolbarColorControlsView: View {
             preferences.update { snapshot in
                 snapshot.setPaletteColor(color, at: index)
             }
-            store.currentColor = color
+            store.setCurrentColor(color)
         }
     }
 
@@ -214,7 +214,7 @@ struct ToolbarColorControlsView: View {
                     selectedPaletteIndex = snapshot.paletteColors.index(before: snapshot.paletteColors.endIndex)
                 }
             }
-            store.currentColor = color
+            store.setCurrentColor(color)
         }
     }
 

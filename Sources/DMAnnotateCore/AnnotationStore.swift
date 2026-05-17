@@ -4,12 +4,12 @@ import Foundation
 
 @MainActor
 public final class AnnotationStore: ObservableObject {
-    public static let supportedStrokeWidths: [CGFloat] = [1, 2, 3, 5, 8, 10, 12, 16, 20, 24, 32, 64]
-    public static let minimumStrokeWidth: CGFloat = 1
-    public static let maximumStrokeWidth: CGFloat = 64
-    public static let supportedTextFontSizes: [CGFloat] = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 96]
-    public static let minimumTextFontSize: CGFloat = 8
-    public static let maximumTextFontSize: CGFloat = 160
+    nonisolated public static let supportedStrokeWidths: [CGFloat] = [1, 2, 3, 5, 8, 10, 12, 16, 20, 24, 32, 64]
+    nonisolated public static let minimumStrokeWidth: CGFloat = 1
+    nonisolated public static let maximumStrokeWidth: CGFloat = 64
+    nonisolated public static let supportedTextFontSizes: [CGFloat] = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 96]
+    nonisolated public static let minimumTextFontSize: CGFloat = 8
+    nonisolated public static let maximumTextFontSize: CGFloat = 160
 
     @Published public private(set) var annotations: [AnnotationItem]
     @Published public var activeTool: AnnotationTool
@@ -21,6 +21,7 @@ public final class AnnotationStore: ObservableObject {
     @Published public var annotationsLocked: Bool
     @Published public var whiteboardModeEnabled: Bool
     @Published public var whiteboardBackground: WhiteboardBackground
+    @Published public private(set) var selectedAnnotationID: AnnotationItem.ID?
     @Published public private(set) var canUndo: Bool
     @Published public private(set) var canRedo: Bool
 
@@ -49,6 +50,7 @@ public final class AnnotationStore: ObservableObject {
         self.annotationsLocked = annotationsLocked
         self.whiteboardModeEnabled = whiteboardModeEnabled
         self.whiteboardBackground = whiteboardBackground
+        selectedAnnotationID = nil
         undoStack = []
         redoStack = []
         canUndo = false
@@ -57,6 +59,10 @@ public final class AnnotationStore: ObservableObject {
 
     public func setActiveTool(_ tool: AnnotationTool) {
         switch tool {
+        case .cursor:
+            activeTool = tool
+            clearSelection()
+            return
         case .whiteboard:
             toggleBoard(background: .white)
             return
@@ -77,18 +83,38 @@ public final class AnnotationStore: ObservableObject {
     }
 
     public func setStrokeWidth(_ width: CGFloat) {
-        strokeWidth = Self.normalizedStrokeWidth(width)
+        let normalized = Self.normalizedStrokeWidth(width)
+        strokeWidth = normalized
+        updateSelectedAnnotation { annotation in
+            guard annotation.kind != .text else { return annotation }
+            var next = annotation
+            next.lineWidth = normalized
+            return next
+        }
     }
 
     public func setTextFontSize(_ size: CGFloat) {
-        textFontSize = Self.normalizedTextFontSize(size)
+        let normalized = Self.normalizedTextFontSize(size)
+        textFontSize = normalized
+        updateSelectedAnnotation { annotation in
+            guard annotation.kind == .text else { return annotation }
+            var next = annotation
+            next.fontSize = normalized
+            return next
+        }
     }
 
     public func setTextFontWeight(_ weight: TextFontWeight) {
         textFontWeight = weight
+        updateSelectedAnnotation { annotation in
+            guard annotation.kind == .text else { return annotation }
+            var next = annotation
+            next.fontWeight = weight
+            return next
+        }
     }
 
-    public static func normalizedStrokeWidth(_ width: CGFloat) -> CGFloat {
+    nonisolated public static func normalizedStrokeWidth(_ width: CGFloat) -> CGFloat {
         guard width.isFinite else { return minimumStrokeWidth }
 
         return Swift.min(
@@ -97,7 +123,7 @@ public final class AnnotationStore: ObservableObject {
         )
     }
 
-    public static func normalizedTextFontSize(_ size: CGFloat) -> CGFloat {
+    nonisolated public static func normalizedTextFontSize(_ size: CGFloat) -> CGFloat {
         guard size.isFinite else { return 24 }
 
         return Swift.min(
@@ -142,6 +168,9 @@ public final class AnnotationStore: ObservableObject {
 
         let removedIDs = Set(removed.map(\.item.id))
         annotations.removeAll { removedIDs.contains($0.id) }
+        if let selectedAnnotationID, removedIDs.contains(selectedAnnotationID) {
+            self.selectedAnnotationID = nil
+        }
         undoStack.append(.remove(removed))
         redoStack.removeAll()
         updateHistoryFlags()
@@ -152,6 +181,7 @@ public final class AnnotationStore: ObservableObject {
 
         let previous = annotations
         annotations.removeAll()
+        selectedAnnotationID = nil
         undoStack.append(.clear(previous))
         redoStack.removeAll()
         updateHistoryFlags()
@@ -163,10 +193,14 @@ public final class AnnotationStore: ObservableObject {
         switch action {
         case .add(let item):
             annotations.removeAll { $0.id == item.id }
+            if selectedAnnotationID == item.id {
+                selectedAnnotationID = nil
+            }
         case .remove(let items):
             restoreRemoved(items)
         case .clear(let items):
             annotations = items
+            selectedAnnotationID = nil
         case .update(let previous, let next):
             replace(id: next.id, with: previous)
         }
@@ -184,8 +218,12 @@ public final class AnnotationStore: ObservableObject {
         case .remove(let items):
             let removedIDs = Set(items.map(\.item.id))
             annotations.removeAll { removedIDs.contains($0.id) }
+            if let selectedAnnotationID, removedIDs.contains(selectedAnnotationID) {
+                self.selectedAnnotationID = nil
+            }
         case .clear:
             annotations.removeAll()
+            selectedAnnotationID = nil
         case .update(let previous, let next):
             replace(id: previous.id, with: next)
         }
@@ -209,10 +247,85 @@ public final class AnnotationStore: ObservableObject {
     public func exitScreenControls() {
         activeTool = .cursor
         whiteboardModeEnabled = false
+        clearSelection()
     }
 
     public func setQuickColor(_ color: RGBAColor) {
+        setCurrentColor(color)
+    }
+
+    public func setCurrentColor(_ color: RGBAColor) {
         currentColor = color
+        updateSelectedAnnotation { annotation in
+            var next = annotation
+            next.color = color
+            return next
+        }
+    }
+
+    public func selectAnnotation(id: AnnotationItem.ID?) {
+        guard let id else {
+            clearSelection()
+            return
+        }
+
+        selectedAnnotationID = annotations.contains { $0.id == id } ? id : nil
+    }
+
+    public func clearSelection() {
+        selectedAnnotationID = nil
+    }
+
+    public var selectedAnnotation: AnnotationItem? {
+        selectedAnnotationID.flatMap { annotation(id: $0) }
+    }
+
+    @discardableResult
+    public func deleteSelectedAnnotation() -> Bool {
+        guard let selectedAnnotationID,
+              let index = annotations.firstIndex(where: { $0.id == selectedAnnotationID }) else {
+            return false
+        }
+
+        let removed = RemovedAnnotation(index: index, item: annotations[index])
+        annotations.remove(at: index)
+        self.selectedAnnotationID = nil
+        undoStack.append(.remove([removed]))
+        redoStack.removeAll()
+        updateHistoryFlags()
+        return true
+    }
+
+    public func sessionDocument(createdAt: Date = Date()) -> AnnotationSessionDocument {
+        AnnotationSessionDocument(
+            createdAt: createdAt,
+            annotations: annotations,
+            currentColor: currentColor,
+            strokeWidth: strokeWidth,
+            textFontSize: textFontSize,
+            textFontWeight: textFontWeight,
+            isVisible: isVisible,
+            annotationsLocked: annotationsLocked,
+            whiteboardModeEnabled: whiteboardModeEnabled,
+            whiteboardBackground: whiteboardBackground
+        )
+    }
+
+    public func loadSession(_ session: AnnotationSessionDocument) {
+        annotations = session.annotations
+        activeTool = .cursor
+        currentColor = session.currentColor
+        strokeWidth = Self.normalizedStrokeWidth(session.strokeWidth)
+        textFontSize = Self.normalizedTextFontSize(session.textFontSize)
+        textFontWeight = session.textFontWeight
+        isVisible = session.isVisible
+        annotationsLocked = session.annotationsLocked
+        whiteboardModeEnabled = session.whiteboardModeEnabled
+        whiteboardBackground = session.whiteboardBackground
+        selectedAnnotationID = nil
+        undoStack.removeAll()
+        redoStack.removeAll()
+        updateHistoryFlags()
     }
 
     private func setStrokeWidth(relativeOffset: Int) {
@@ -249,6 +362,17 @@ public final class AnnotationStore: ObservableObject {
     private func replace(id: AnnotationItem.ID, with annotation: AnnotationItem) {
         guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
         annotations[index] = annotation
+    }
+
+    private func updateSelectedAnnotation(_ transform: (AnnotationItem) -> AnnotationItem) {
+        guard let selectedAnnotationID,
+              let previous = annotation(id: selectedAnnotationID) else {
+            return
+        }
+
+        let next = transform(previous)
+        guard previous != next else { return }
+        recordMove(from: previous, to: next)
     }
 
     private func restoreRemoved(_ items: [RemovedAnnotation]) {

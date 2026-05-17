@@ -4,7 +4,7 @@
 
 The app runs from the macOS menu bar and provides a floating toolbar for drawing over any app during demos, classes, design reviews, screen shares, and recordings.
 
-> Status: early public release. Core annotation, screenshot, shortcut, settings, and permission flows are implemented, but signed/notarized distribution is still a maintainer release step.
+> Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. Tagged GitHub releases require Developer ID signing and notarization secrets.
 
 ## Demo
 
@@ -31,15 +31,17 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 - Always-on-top transparent annotation overlay across active displays
 - Click-through cursor mode
 - Standard macOS top menu when the app is active
-- Floating toolbar with vertical/horizontal layouts, collapse, drag positioning, and find pulse
-- Per-display toolbar position memory
+- Floating toolbar with vertical/horizontal layouts, compact presenter mode, collapse, drag positioning, and find pulse
+- Per-display toolbar position memory and local layout presets
 - Cyan drawing-mode indicator when screen controls are active
-- Pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, whiteboard, and blackboard modes
+- Select, pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, whiteboard, and blackboard modes
 - Annotation lock to prevent accidental edits during presentations
 - Tool shortcuts, shortcut tooltips, and click-to-record shortcut customization
 - Command palette for keyboard-first access to tools and actions
 - Undo, redo, clear all, and show/hide annotations
 - Text annotations with movable text, Shift+Enter multiline entry, an auto-expanding editor, and text style controls for size, weight, and color
+- Placed annotation selection for move, delete, recolor, and stroke/text size edits with undo/redo
+- Local annotation session save/load using `.dmannotate-session` files
 - 10-color editable palette, saved/reloadable palettes, custom color picker, default color, and stroke widths from `1` through `64` px with custom entry
 - Full-display and crosshair-guided region screenshots to clipboard or timestamped PNG files, with copy/save/reveal options and transparent annotation-only PNG export
 - Local settings for theme, toolbar, tooltips, visible tools, screenshot destination, colors, and shortcuts
@@ -72,7 +74,7 @@ The first-run onboarding window checks these permissions and links to the releva
 ## Developer Preview Gatekeeper Step
 
 > [!IMPORTANT]
-> Current GitHub release downloads are ad-hoc signed and not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog until Developer ID signing is configured.
+> Local ad-hoc builds are not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog.
 >
 > After moving the app to `/Applications`, run:
 >
@@ -92,7 +94,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Until releases are Developer ID signed and notarized, Homebrew installs may still need the Gatekeeper preview step above before first launch.
+Homebrew installs use the signed and notarized GitHub release artifact when the tag workflow completes successfully.
 
 Fallback direct tap path:
 

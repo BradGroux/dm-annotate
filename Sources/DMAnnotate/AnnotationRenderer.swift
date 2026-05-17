@@ -74,6 +74,23 @@ enum AnnotationRenderer {
         }
     }
 
+    static func drawSelection(_ annotation: AnnotationItem) {
+        let rect = annotation.boundingRect.expanded(by: 5)
+        guard !rect.isNull, !rect.isEmpty else { return }
+
+        let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        path.lineWidth = 1.5
+        let dash: [CGFloat] = [5, 4]
+        path.setLineDash(dash, count: dash.count, phase: 0)
+        NSColor.systemCyan.setStroke()
+        path.stroke()
+
+        for point in rect.selectionHandles {
+            NSColor.systemCyan.setFill()
+            NSBezierPath(ovalIn: CGRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)).fill()
+        }
+    }
+
     static func drawLaserTrail(_ points: [TimedPoint]) {
         guard points.count > 1 else { return }
 
@@ -191,6 +208,21 @@ enum AnnotationRenderer {
 
         color.setStroke()
         path.stroke()
+    }
+}
+
+private extension CGRect {
+    var selectionHandles: [CGPoint] {
+        [
+            CGPoint(x: minX, y: minY),
+            CGPoint(x: midX, y: minY),
+            CGPoint(x: maxX, y: minY),
+            CGPoint(x: maxX, y: midY),
+            CGPoint(x: maxX, y: maxY),
+            CGPoint(x: midX, y: maxY),
+            CGPoint(x: minX, y: maxY),
+            CGPoint(x: minX, y: midY)
+        ]
     }
 }
 

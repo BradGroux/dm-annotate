@@ -10,7 +10,9 @@ The defaults are:
 | Cursor mode | `Esc` |
 | Collapse/expand toolbar | `Option+Command+T` |
 | Switch toolbar orientation | `Option+Command+O` |
+| Compact presenter mode | `Option+Command+M` |
 | Find toolbar | `Option+Command+F` |
+| Select tool | `Control+Option+S` |
 | Pen tool | `Control+Option+P` |
 | Highlighter tool | `Control+Option+H` |
 | Eraser tool | `Control+Option+E` |
@@ -62,3 +64,12 @@ These apply while the inline text editor is active:
 | Commit text annotation | `Enter` |
 | Insert newline | `Shift+Enter` |
 | Cancel text entry and exit controls | `Esc` |
+
+## Selection shortcuts
+
+These apply while the Select tool has a selected annotation:
+
+| Action | Shortcut |
+| --- | --- |
+| Delete selected annotation | `Delete` |
+| Clear selection | `Esc` |

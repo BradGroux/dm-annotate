@@ -9,7 +9,7 @@ final class ToolbarColorPanelController: NSObject {
 
     func show(currentColor: RGBAColor, store: AnnotationStore) {
         show(currentColor: currentColor) { color in
-            store.currentColor = color
+            store.setCurrentColor(color)
         }
     }
 

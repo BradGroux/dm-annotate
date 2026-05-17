@@ -188,7 +188,7 @@ struct ToolbarStrokeTextControlsView: View {
                     ForEach(Array(preferences.snapshot.paletteColors.enumerated()), id: \.offset) { index, color in
                         Button {
                             ToolbarTooltipController.shared.hide()
-                            store.currentColor = color
+                            store.setCurrentColor(color)
                         } label: {
                             colorSwatch(color, selected: store.currentColor == color, size: 24)
                                 .frame(width: 30, height: 30)

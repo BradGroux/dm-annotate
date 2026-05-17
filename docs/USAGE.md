@@ -31,7 +31,7 @@ open ".build/Digital Meld Annotate.app"
 ```
 
 > [!IMPORTANT]
-> Release zip downloads are ad-hoc signed developer previews until Developer ID signing and notarization are configured. macOS Gatekeeper may block the first launch.
+> Local ad-hoc builds are not notarized. macOS Gatekeeper may block the first launch.
 >
 > After moving the app to `/Applications`, run:
 >
@@ -53,7 +53,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Current preview releases are not notarized yet, so the Gatekeeper command in the Launch section may still be required after Homebrew installs the app.
+Homebrew installs use the signed and notarized GitHub release artifact when the tag workflow completes successfully.
 
 ## Permissions
 
@@ -73,8 +73,10 @@ The floating toolbar supports:
 
 - Dragging by the grip.
 - Vertical and horizontal layouts.
+- Compact presenter mode.
 - Collapse/expand.
 - A find/pulse action if the toolbar gets lost.
+- Local layout presets in Settings.
 - Tooltips on hover with shortcut labels where available.
 - A cyan border when the app is actively controlling pointer input.
 
@@ -93,6 +95,7 @@ Collapsed mode intentionally shows only the drag grip and expand button.
 ## Drawing and Click-through
 
 - Cursor mode passes pointer events through to apps underneath.
+- Select mode captures pointer input for editing placed annotations.
 - Drawing tools capture pointer input on the overlay.
 - Press `Escape` once to exit drawing controls and return to cursor mode.
 - Press `Escape` twice quickly to quit.
@@ -103,6 +106,7 @@ Collapsed mode intentionally shows only the drag grip and expand button.
 Supported tools:
 
 - Cursor
+- Select
 - Pen
 - Highlighter
 - Eraser
@@ -122,6 +126,14 @@ Text annotations support:
 - Auto-expanding text entry as the sentence grows.
 - Dragging existing text with the Text tool.
 - Text style controls for font size, custom size, weight, and color.
+
+Select mode supports:
+
+- Selecting placed annotations.
+- Moving a selected annotation.
+- Deleting a selected annotation with `Delete`.
+- Recoloring a selected annotation from toolbar color controls.
+- Resizing selected strokes and shapes from toolbar stroke controls.
 
 Whiteboard and blackboard controls toggle white and black presentation backgrounds. Settings can still choose light grid or dark grid board backgrounds.
 
@@ -166,6 +178,7 @@ Settings include:
 
 - Theme.
 - Toolbar orientation and collapsed state.
+- Compact presenter mode and local toolbar presets.
 - High contrast toolbar.
 - Toolbar tooltips.
 - Visible tools.
@@ -175,6 +188,12 @@ Settings include:
 - Keyboard shortcuts with duplicate detection and disable support.
 - Community links for SSTB.ai, the Start Small, Think Big podcast playlist, and Discord.
 - Help, version, permission, and diagnostics links.
+
+## Annotation Sessions
+
+Use **File > Save Annotation Session...** to write the current annotations to a local `.dmannotate-session` file. Use **File > Load Annotation Session...** to restore one later.
+
+Session files contain annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. If a saved display is missing when loading, annotations are retargeted to the current main display. Session files stay local and are not synced by the app.
 
 ## Safe Mode
 

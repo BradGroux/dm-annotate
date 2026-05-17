@@ -34,6 +34,11 @@ elif [[ -n "${NOTARIZE_APPLE_ID:-}" || -n "${NOTARIZE_TEAM_ID:-}" || -n "${NOTAR
   NOTARIZE_ARGS=(--apple-id "${NOTARIZE_APPLE_ID}" --team-id "${NOTARIZE_TEAM_ID}" --password "${NOTARIZE_PASSWORD}")
 fi
 
+if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" && "${#NOTARIZE_ARGS[@]}" -eq 0 ]]; then
+  echo "error: notarization is required, but no notarytool credentials were provided." >&2
+  exit 1
+fi
+
 if [[ "${#NOTARIZE_ARGS[@]}" -gt 0 ]]; then
   if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
     echo "error: notarization requires CODESIGN_IDENTITY." >&2
@@ -42,6 +47,8 @@ if [[ "${#NOTARIZE_ARGS[@]}" -gt 0 ]]; then
 
   xcrun notarytool submit "${ZIP_PATH}" "${NOTARIZE_ARGS[@]}" --wait
   xcrun stapler staple "${APP_DIR}"
+  xcrun stapler validate "${APP_DIR}"
+  spctl -a -vvv -t exec "${APP_DIR}"
   rm -f "${ZIP_PATH}"
   ditto -c -k --keepParent "${APP_DIR}" "${ZIP_PATH}"
 fi

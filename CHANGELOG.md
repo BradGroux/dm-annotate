@@ -11,11 +11,14 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 - Added release zip verification and local UI smoke scripts for packaged app validation.
 - Added transparent annotation-only PNG export alongside flattened screenshot output.
 - Added consumable global shortcut handling with local shortcut fallback.
+- Added local annotation session save/load.
+- Added Select mode for moving, deleting, recoloring, and resizing placed annotations with undo/redo.
+- Added toolbar layout presets and compact presenter mode.
 
 ### Changed
 
 - Split toolbar and settings sections into focused SwiftUI views.
-- Updated release docs and generated release notes to reflect ad-hoc, signed, and notarized build states.
+- Updated release docs and generated release notes to require signed, notarized, stapled release artifacts for tagged GitHub releases.
 
 ### Fixed
 

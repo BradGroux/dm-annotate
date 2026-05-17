@@ -13,6 +13,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private var cancellables: Set<AnyCancellable> = []
     private var lastToolbarOrientation: ToolbarOrientation?
     private var lastToolbarCollapsed: Bool?
+    private var lastToolbarCompactMode: Bool?
     private var lastVisibleTools: Set<AnnotationTool>?
     private var lastQuickColorCount: Int?
     private var suppressMovePersistenceUntil: Date?
@@ -75,6 +76,13 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     func toggleOrientation() {
         var next = preferences.snapshot
         next.toolbarOrientation = next.toolbarOrientation == .vertical ? .horizontal : .vertical
+        next.toolbarCollapsed = false
+        applyToolbarLayout(next)
+    }
+
+    func toggleCompactMode() {
+        var next = preferences.snapshot
+        next.toolbarCompactMode.toggle()
         next.toolbarCollapsed = false
         applyToolbarLayout(next)
     }
@@ -182,6 +190,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
         let layoutChanged = snapshot.toolbarOrientation != lastToolbarOrientation ||
             snapshot.toolbarCollapsed != lastToolbarCollapsed ||
+            snapshot.toolbarCompactMode != lastToolbarCompactMode ||
             snapshot.visibleTools != lastVisibleTools ||
             snapshot.paletteColors.count != lastQuickColorCount
 
@@ -195,6 +204,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private func updateLastLayoutState(_ snapshot: PreferencesSnapshot) {
         lastToolbarOrientation = snapshot.toolbarOrientation
         lastToolbarCollapsed = snapshot.toolbarCollapsed
+        lastToolbarCompactMode = snapshot.toolbarCompactMode
         lastVisibleTools = snapshot.visibleTools
         lastQuickColorCount = snapshot.paletteColors.count
     }
@@ -291,6 +301,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 struct ToolbarActions {
     var toggleToolbarCollapsed: () -> Void
     var toggleToolbarOrientation: () -> Void
+    var toggleToolbarCompactMode: () -> Void
     var expandToolbar: () -> Void
     var screenshot: () -> Void
     var regionScreenshot: () -> Void

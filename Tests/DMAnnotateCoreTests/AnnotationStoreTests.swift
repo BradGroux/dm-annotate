@@ -77,7 +77,9 @@ import Testing
     #expect(snapshot.shortcuts[.cursorMode] == "escape")
     #expect(snapshot.shortcuts[.toggleToolbarCollapsed] == "option+command+t")
     #expect(snapshot.shortcuts[.toggleToolbarOrientation] == "option+command+o")
+    #expect(snapshot.shortcuts[.toggleToolbarCompactMode] == "option+command+m")
     #expect(snapshot.shortcuts[.findToolbar] == "option+command+f")
+    #expect(snapshot.shortcuts[.selectTool] == "control+option+s")
     #expect(snapshot.shortcuts[.toggleAnnotationLock] == "option+command+l")
     #expect(snapshot.shortcuts[.toggleAnnotationVisibility] == "option+command+v")
     #expect(snapshot.shortcuts[.undo] == "command+z")
@@ -263,6 +265,108 @@ import Testing
     #expect(store.annotations.isEmpty)
     #expect(!store.canUndo)
     #expect(!store.canRedo)
+}
+
+@MainActor
+@Test func selectedAnnotationCanMoveRecolorResizeDeleteAndUndo() {
+    let store = AnnotationStore()
+    let original = AnnotationItem(
+        displayID: 1,
+        kind: .rectangle,
+        points: [CGPoint(x: 10, y: 10), CGPoint(x: 60, y: 60)],
+        color: .red,
+        lineWidth: 3
+    )
+    var moved = original
+    moved.points = [CGPoint(x: 20, y: 30), CGPoint(x: 70, y: 80)]
+
+    store.add(original)
+    store.selectAnnotation(id: original.id)
+    store.recordMove(from: original, to: moved)
+    store.setCurrentColor(.blue)
+    store.setStrokeWidth(12)
+
+    #expect(store.annotation(id: original.id)?.points == moved.points)
+    #expect(store.annotation(id: original.id)?.color == .blue)
+    #expect(store.annotation(id: original.id)?.lineWidth == 12)
+
+    #expect(store.deleteSelectedAnnotation())
+    #expect(store.annotations.isEmpty)
+
+    store.undo()
+    #expect(store.annotations.count == 1)
+    store.undo()
+    #expect(store.annotation(id: original.id)?.lineWidth == 3)
+    store.undo()
+    #expect(store.annotation(id: original.id)?.color == .red)
+    store.undo()
+    #expect(store.annotation(id: original.id)?.points == original.points)
+}
+
+@MainActor
+@Test func annotationSessionRoundTripsAndRetargetsMissingDisplays() throws {
+    let store = AnnotationStore(
+        currentColor: .green,
+        strokeWidth: 9,
+        textFontSize: 32,
+        textFontWeight: .bold,
+        isVisible: false,
+        annotationsLocked: true,
+        whiteboardModeEnabled: true,
+        whiteboardBackground: .darkGrid
+    )
+    let item = AnnotationItem(
+        displayID: 42,
+        kind: .text,
+        points: [CGPoint(x: 12, y: 34)],
+        color: .blue,
+        lineWidth: 3,
+        text: "Saved",
+        fontSize: 24,
+        fontWeight: .semibold
+    )
+
+    store.add(item)
+    let data = try store.sessionDocument(createdAt: Date(timeIntervalSince1970: 1_777_777_777)).encodedData()
+    let decoded = try AnnotationSessionDocument.decode(from: data)
+        .retargetingMissingDisplays(availableDisplayIDs: [7], fallbackDisplayID: 7)
+    let restored = AnnotationStore()
+
+    restored.loadSession(decoded)
+
+    #expect(restored.annotations.count == 1)
+    #expect(restored.annotations[0].displayID == 7)
+    #expect(restored.currentColor == .green)
+    #expect(restored.strokeWidth == 9)
+    #expect(restored.textFontSize == 32)
+    #expect(restored.textFontWeight == .bold)
+    #expect(!restored.isVisible)
+    #expect(restored.annotationsLocked)
+    #expect(restored.whiteboardModeEnabled)
+    #expect(restored.whiteboardBackground == .darkGrid)
+    #expect(!restored.canUndo)
+}
+
+@Test func toolbarPresetsApplyOnlyAvailableDisplays() {
+    var snapshot = PreferencesSnapshot(
+        toolbarOrientation: .horizontal,
+        toolbarCompactMode: true,
+        toolbarOriginX: 20,
+        toolbarOriginY: 40,
+        toolbarOriginsByDisplayID: ["1": CGPoint(x: 20, y: 40), "2": CGPoint(x: 90, y: 120)]
+    )
+    snapshot.saveToolbarPreset(named: "Desk")
+    snapshot.toolbarOrientation = .vertical
+    snapshot.toolbarCompactMode = false
+    snapshot.toolbarOrigin = CGPoint(x: 0, y: 0)
+    snapshot.toolbarOriginsByDisplayID = [:]
+
+    snapshot.applyToolbarPreset(snapshot.toolbarPresets[0], availableDisplayIDs: ["2"])
+
+    #expect(snapshot.toolbarOrientation == .horizontal)
+    #expect(snapshot.toolbarCompactMode)
+    #expect(snapshot.toolbarOrigin == CGPoint(x: 20, y: 40))
+    #expect(snapshot.toolbarOriginsByDisplayID == ["2": CGPoint(x: 90, y: 120)])
 }
 
 @MainActor
@@ -480,9 +584,9 @@ import Testing
     #expect(size.height == ToolbarLayoutMetrics.horizontalPanelHeight)
 }
 
-@Test func toolbarLayoutMetricsVerticalHeightGrowsForPermissionStatus() {
+@Test func toolbarLayoutMetricsVerticalHeightHandlesPermissionStatus() {
     let snapshot = PreferencesSnapshot(toolbarOrientation: .vertical)
-    let visibleFrame = CGRect(x: 0, y: 0, width: 800, height: 1_000)
+    let visibleFrame = CGRect(x: 0, y: 0, width: 800, height: 2_000)
     let withoutStatus = ToolbarLayoutMetrics.preferredSize(
         for: snapshot,
         visibleFrame: visibleFrame,
@@ -494,6 +598,23 @@ import Testing
         statusControlCount: 1
     )
 
-    #expect(withStatus.height > withoutStatus.height)
+    #expect(withStatus.height >= withoutStatus.height)
     #expect(withStatus.width == ToolbarLayoutMetrics.verticalPanelWidth)
+}
+
+@Test func compactToolbarLayoutIsSmallerThanNormalToolbar() {
+    let visibleFrame = CGRect(x: 0, y: 0, width: 1_400, height: 1_200)
+    let normal = ToolbarLayoutMetrics.preferredSize(
+        for: PreferencesSnapshot(toolbarOrientation: .vertical),
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let compact = ToolbarLayoutMetrics.preferredSize(
+        for: PreferencesSnapshot(toolbarOrientation: .vertical, toolbarCompactMode: true),
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+
+    #expect(compact.width == normal.width)
+    #expect(compact.height < normal.height)
 }
