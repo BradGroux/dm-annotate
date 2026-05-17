@@ -57,30 +57,71 @@ jobs:
           bash -n scripts/smoke-ui.sh
 
       - name: Validate signing configuration
+        id: signing
         run: |
-          required=(
+          cert_names=(
             APPLE_DEVELOPER_ID_CERTIFICATE_BASE64
             APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
             APPLE_DEVELOPER_IDENTITY
+          )
+          notary_names=(
             APPLE_NOTARIZATION_APPLE_ID
             APPLE_NOTARIZATION_PASSWORD
             APPLE_NOTARIZATION_TEAM_ID
           )
 
-          missing=()
-          for name in "${required[@]}"; do
-            if [[ -z "${!name:-}" ]]; then
-              missing+=("${name}")
+          cert_present="false"
+          notary_present="false"
+          cert_missing=()
+          notary_missing=()
+
+          for name in "${cert_names[@]}"; do
+            if [[ -n "${!name:-}" ]]; then
+              cert_present="true"
+            else
+              cert_missing+=("${name}")
             fi
           done
 
-          if [[ "${#missing[@]}" -gt 0 ]]; then
-            printf 'Signed and notarized releases require these GitHub Actions secrets:\n' >&2
-            printf -- '- %s\n' "${missing[@]}" >&2
+          for name in "${notary_names[@]}"; do
+            if [[ -n "${!name:-}" ]]; then
+              notary_present="true"
+            else
+              notary_missing+=("${name}")
+            fi
+          done
+
+          if [[ "${cert_present}" == "true" && "${#cert_missing[@]}" -gt 0 ]]; then
+            printf 'Developer ID signing secrets are partially configured. Missing:\n' >&2
+            printf -- '- %s\n' "${cert_missing[@]}" >&2
             exit 1
           fi
 
+          if [[ "${notary_present}" == "true" && "${#notary_missing[@]}" -gt 0 ]]; then
+            printf 'Notarization secrets are partially configured. Missing:\n' >&2
+            printf -- '- %s\n' "${notary_missing[@]}" >&2
+            exit 1
+          fi
+
+          if [[ "${cert_present}" == "true" && "${notary_present}" != "true" ]]; then
+            echo "Developer ID release signing requires notarization secrets too." >&2
+            exit 1
+          fi
+
+          if [[ "${notary_present}" == "true" && "${cert_present}" != "true" ]]; then
+            echo "Notarization requires Developer ID signing secrets too." >&2
+            exit 1
+          fi
+
+          if [[ "${cert_present}" == "true" && "${notary_present}" == "true" ]]; then
+            echo "notarize=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "notarize=false" >> "${GITHUB_OUTPUT}"
+            echo "No Apple release secrets are configured. Publishing an ad-hoc signed developer preview." >&2
+          fi
+
       - name: Import Developer ID certificate
+        if: steps.signing.outputs.notarize == 'true'
         run: |
           certificate_path="${RUNNER_TEMP}/developer-id.p12"
           keychain_path="${RUNNER_TEMP}/app-signing.keychain-db"
@@ -103,11 +144,18 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
           NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
           NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
-          REQUIRE_NOTARIZATION: "1"
         run: |
+          if [[ "${{ steps.signing.outputs.notarize }}" == "true" ]]; then
+            export REQUIRE_NOTARIZATION=1
+          fi
+
           zip_path="$(scripts/verify-release-zip.sh)"
           shasum -a 256 "${zip_path}" | tee "${zip_path}.sha256"
-          signing_status="Developer ID signed, notarized, stapled, and accepted by Gatekeeper."
+          if [[ "${{ steps.signing.outputs.notarize }}" == "true" ]]; then
+            signing_status="Developer ID signed, notarized, stapled, and accepted by Gatekeeper."
+          else
+            signing_status="Ad-hoc signed developer preview. Not notarized; macOS Gatekeeper may require manual approval."
+          fi
 
           {
             echo "zip_path=${zip_path}"

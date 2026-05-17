@@ -31,7 +31,7 @@ open ".build/Digital Meld Annotate.app"
 ```
 
 > [!IMPORTANT]
-> Local ad-hoc builds are not notarized. macOS Gatekeeper may block the first launch.
+> Current ad-hoc builds are not notarized. macOS Gatekeeper may block the first launch.
 >
 > After moving the app to `/Applications`, run:
 >
@@ -53,7 +53,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the signed and notarized GitHub release artifact when the tag workflow completes successfully.
+Homebrew installs use the current GitHub release artifact. Until Developer ID signing and notarization are configured, the Gatekeeper command in the Launch section may still be required after Homebrew installs the app.
 
 ## Permissions
 

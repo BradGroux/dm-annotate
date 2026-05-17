@@ -50,13 +50,13 @@ Strengths:
 - Select mode now supports placed annotation move, delete, recolor, stroke sizing, and text style edits with undo/redo.
 - Toolbar layout presets now save and apply local display-aware toolbar layouts.
 - Compact presenter mode now exposes the active tool, color, stroke width, undo, delete/clear, and cursor controls in a smaller toolbar.
-- Tagged GitHub releases now require Developer ID signing and notarization secrets, validate the stapled ticket, and run Gatekeeper acceptance checks before publishing artifacts.
+- Tagged GitHub releases now validate complete Developer ID signing and notarization secrets when configured, while still allowing explicit ad-hoc developer-preview releases until #5 is complete.
 
 ## Remaining Refactor Targets
 
 
 ## Improvement Backlog
 
-- Add signed-release secret values in GitHub Actions before cutting the next public tag.
+- Add signed-release secret values in GitHub Actions before cutting the next polished public tag.
 - Add richer resize handles for direct mouse resizing of selected shapes.
 - Add UI smoke assertions for session menus, compact toolbar mode, and toolbar preset settings once window-level automation is practical in CI.

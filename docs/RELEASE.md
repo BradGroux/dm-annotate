@@ -1,6 +1,6 @@
 # Release Guide
 
-This project can build an ad-hoc signed local app bundle from source. Tagged GitHub releases require Developer ID signing, notarization, stapling, and Gatekeeper validation.
+This project can build an ad-hoc signed local app bundle from source. Tagged GitHub releases publish a developer-preview zip when Apple release secrets are absent, and publish Developer ID signed, notarized, stapled zips when the full secret set is configured.
 
 ## macOS requirements
 
@@ -207,7 +207,7 @@ git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-The workflow fails if the tag does not match `CFBundleShortVersionString` or any required Apple signing/notarization secret is missing.
+The workflow fails if the tag does not match `CFBundleShortVersionString`. Apple signing/notarization secrets are all-or-nothing: a partial secret set fails the workflow, no secret set publishes an ad-hoc developer preview, and a complete secret set publishes a signed/notarized release.
 
 The workflow runs:
 
@@ -215,8 +215,8 @@ The workflow runs:
 - `swift test`
 - `plutil -lint Packaging/Info.plist`
 - packaging script syntax checks
-- `scripts/package-release.sh` with `REQUIRE_NOTARIZATION=1`
-- `scripts/verify-release-zip.sh` with `REQUIRE_NOTARIZATION=1`
+- `scripts/package-release.sh`
+- `scripts/verify-release-zip.sh`
 - `bash -n scripts/smoke-ui.sh`
 - SHA256 generation
 
@@ -227,7 +227,7 @@ It then creates a GitHub Release and attaches:
 
 ## Release signing status
 
-The automated tag workflow publishes only Developer ID signed, notarized, stapled release zips. Ad-hoc signed builds are still available for local source builds and maintainer testing.
+The automated tag workflow publishes ad-hoc signed developer previews until Apple release secrets are configured. With the required secrets present, it publishes Developer ID signed, notarized, stapled release zips and validates Gatekeeper acceptance.
 
 Required repository secrets:
 
@@ -271,4 +271,4 @@ With those secrets configured, the release workflow:
 >
 > Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
 
-The dedicated `BradGroux/tap` cask is the current Homebrew distribution path. Public cask updates should point at signed and notarized GitHub release artifacts.
+The dedicated `BradGroux/tap` cask is the current Homebrew distribution path. Until #5 is complete, cask updates point at ad-hoc signed developer-preview GitHub release artifacts and should keep the Gatekeeper warning visible in docs.

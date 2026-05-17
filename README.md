@@ -4,7 +4,7 @@
 
 The app runs from the macOS menu bar and provides a floating toolbar for drawing over any app during demos, classes, design reviews, screen shares, and recordings.
 
-> Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. Tagged GitHub releases require Developer ID signing and notarization secrets.
+> Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. GitHub releases are developer previews until Developer ID signing and notarization secrets are configured.
 
 ## Demo
 
@@ -74,7 +74,7 @@ The first-run onboarding window checks these permissions and links to the releva
 ## Developer Preview Gatekeeper Step
 
 > [!IMPORTANT]
-> Local ad-hoc builds are not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog.
+> Current ad-hoc builds are not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog.
 >
 > After moving the app to `/Applications`, run:
 >
@@ -94,7 +94,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the signed and notarized GitHub release artifact when the tag workflow completes successfully.
+Homebrew installs use the current GitHub release artifact. Until Developer ID signing and notarization are configured, the Gatekeeper preview step above may still be required before first launch.
 
 Fallback direct tap path:
 

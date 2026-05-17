@@ -6,6 +6,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.1.10 - 2026-05-16
+
 ### Added
 
 - Added release zip verification and local UI smoke scripts for packaged app validation.
@@ -18,7 +22,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 ### Changed
 
 - Split toolbar and settings sections into focused SwiftUI views.
-- Updated release docs and generated release notes to require signed, notarized, stapled release artifacts for tagged GitHub releases.
+- Updated release docs and generated release notes to distinguish ad-hoc developer previews from signed, notarized release artifacts.
 
 ### Fixed
 
