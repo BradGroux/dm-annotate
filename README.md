@@ -96,6 +96,21 @@ brew install --cask dm-annotate
 
 Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled.
 
+`BradGroux/tap` is the only supported Homebrew tap for `dm-annotate`. If Homebrew reports that `dm-annotate` exists in multiple taps, remove the retired app-repo tap:
+
+```sh
+brew untap BradGroux/dm-annotate
+brew install --cask dm-annotate
+```
+
+If Homebrew refuses to untap because `dm-annotate` is installed from the retired tap, migrate the installed cask first:
+
+```sh
+brew reinstall --cask bradgroux/tap/dm-annotate
+brew untap --force BradGroux/dm-annotate
+brew install --cask dm-annotate
+```
+
 ## Clone
 
 ```sh
