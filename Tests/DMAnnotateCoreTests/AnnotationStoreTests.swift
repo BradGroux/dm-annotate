@@ -598,7 +598,7 @@ import Testing
         statusControlCount: 1
     )
 
-    #expect(withStatus.height >= withoutStatus.height)
+    #expect(withStatus.height == withoutStatus.height + ToolbarLayoutMetrics.buttonSize + ToolbarLayoutMetrics.gridSpacing)
     #expect(withStatus.width == ToolbarLayoutMetrics.verticalPanelWidth)
 }
 

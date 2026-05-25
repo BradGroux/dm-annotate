@@ -71,12 +71,7 @@ struct ToolbarContentView: View {
             VStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
                 dragBar
 
-                LazyVGrid(columns: compactColumns, spacing: ToolbarLayoutMetrics.gridSpacing) {
-                    orientationToggle
-                    compactModeToggle
-                    collapseToggle
-                    statusControls
-                }
+                verticalTopControls
 
                 sectionDivider
 
@@ -105,8 +100,8 @@ struct ToolbarContentView: View {
             HStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
                 dragBar
                 orientationToggle
-                compactModeToggle
                 collapseToggle
+                compactModeToggle
                 statusControls
                 verticalDivider
                 toolButtons
@@ -150,6 +145,23 @@ struct ToolbarContentView: View {
             }
         }
         .frame(width: ToolbarLayoutMetrics.verticalContentWidth)
+    }
+
+    private var verticalTopControls: some View {
+        VStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
+            HStack(spacing: ToolbarLayoutMetrics.gridSpacing) {
+                orientationToggle
+                collapseToggle
+            }
+
+            compactModeToggleButton(width: ToolbarLayoutMetrics.wideButtonWidth)
+
+            if permissionSummary.needsAttention {
+                LazyVGrid(columns: compactColumns, spacing: ToolbarLayoutMetrics.gridSpacing) {
+                    statusControls
+                }
+            }
+        }
     }
 
     private var compactHorizontalBody: some View {
@@ -225,10 +237,15 @@ struct ToolbarContentView: View {
     }
 
     private var compactModeToggle: some View {
+        compactModeToggleButton()
+    }
+
+    private func compactModeToggleButton(width: CGFloat = ToolbarLayoutMetrics.buttonSize) -> some View {
         Button {
             actions.toggleToolbarCompactMode()
         } label: {
             toolbarIcon(preferences.snapshot.toolbarCompactMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                .frame(width: width, height: ToolbarLayoutMetrics.buttonSize)
         }
         .buttonStyle(toolbarButtonStyle(active: preferences.snapshot.toolbarCompactMode))
         .toolbarHelp(tooltip(preferences.snapshot.toolbarCompactMode ? "Expand presenter toolbar" : "Compact presenter toolbar", action: .toggleToolbarCompactMode))
