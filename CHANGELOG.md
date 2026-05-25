@@ -10,6 +10,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 - Added App Store Connect API key notarization support for local and GitHub release packaging.
 
+### Changed
+
+- Updated install and release docs to reflect Developer ID signed, notarized, stapled Homebrew artifacts.
+
 ## 0.1.10 - 2026-05-16
 
 ### Added

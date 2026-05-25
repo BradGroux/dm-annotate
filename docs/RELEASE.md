@@ -247,7 +247,7 @@ It then creates a GitHub Release and attaches:
 
 ## Release signing status
 
-The automated tag workflow publishes ad-hoc signed developer previews until Apple release secrets are configured. With the required secrets present, it publishes Developer ID signed, notarized, stapled release zips and validates Gatekeeper acceptance.
+The `BradGroux/dm-annotate` release workflow is configured with the complete Developer ID and App Store Connect secret set. Tagged releases publish Developer ID signed, notarized, stapled release zips and validate Gatekeeper acceptance. Forks or local clones without Apple release secrets fall back to ad-hoc signed developer previews.
 
 Required Developer ID signing secrets:
 
@@ -286,7 +286,7 @@ With those secrets configured, the release workflow:
 - rebuilds the zip with the stapled app,
 - uploads the notarized archive and SHA256 file to GitHub Releases.
 
-## Opening developer preview builds
+## Opening local preview builds
 
 > [!IMPORTANT]
 > Local ad-hoc signed builds are not notarized. macOS may block them with an "Apple could not verify" dialog.
@@ -300,4 +300,4 @@ With those secrets configured, the release workflow:
 >
 > Only do this for builds you trust. General users should receive Developer ID signed and notarized releases.
 
-The dedicated `BradGroux/tap` cask is the current Homebrew distribution path. Until #5 is complete, cask updates point at ad-hoc signed developer-preview GitHub release artifacts and should keep the Gatekeeper warning visible in docs.
+The dedicated `BradGroux/tap` cask is the current Homebrew distribution path. Published cask artifacts point at Developer ID signed, notarized, stapled GitHub release archives.

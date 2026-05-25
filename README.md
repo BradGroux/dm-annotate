@@ -4,7 +4,7 @@
 
 The app runs from the macOS menu bar and provides a floating toolbar for drawing over any app during demos, classes, design reviews, screen shares, and recordings.
 
-> Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. GitHub releases are developer previews until Developer ID signing and notarization secrets are configured.
+> Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. GitHub and Homebrew release artifacts are Developer ID signed, notarized, and stapled.
 
 ## Demo
 
@@ -71,10 +71,10 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 
 The first-run onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. It refreshes when you return from System Settings, and you can reopen it from **Permissions...** in the app menu or menu bar item. Consumable global shortcuts use a native macOS event tap when permission is available; otherwise the app falls back to normal global monitoring.
 
-## Developer Preview Gatekeeper Step
+## Local Preview Gatekeeper Step
 
 > [!IMPORTANT]
-> Current ad-hoc builds are not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog.
+> Local source-built ad-hoc bundles are not notarized. macOS Gatekeeper may block them with an "Apple could not verify" dialog.
 >
 > After moving the app to `/Applications`, run:
 >
@@ -83,7 +83,7 @@ The first-run onboarding window checks these permissions and links to the releva
 > open "/Applications/Digital Meld Annotate.app"
 > ```
 >
-> Only do this for builds you trust. See [Opening developer preview builds](docs/RELEASE.md#opening-developer-preview-builds).
+> Only do this for local builds you trust. See [Opening local preview builds](docs/RELEASE.md#opening-local-preview-builds).
 
 ## Install with Homebrew
 
@@ -94,7 +94,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the current GitHub release artifact. Until Developer ID signing and notarization are configured, the Gatekeeper preview step above may still be required before first launch.
+Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled.
 
 Fallback direct tap path:
 
@@ -159,6 +159,7 @@ CODESIGN_IDENTITY="Developer ID Application: Example" scripts/package-release.sh
 CODESIGN_IDENTITY="Developer ID Application: Example" \
 NOTARIZE_KEY_PATH="$HOME/private_keys/AuthKey_EXAMPLE.p8" \
 NOTARIZE_KEY_ID="EXAMPLE1234" \
+NOTARIZE_ISSUER_ID="00000000-0000-0000-0000-000000000000" \
 scripts/package-release.sh
 CODESIGN_IDENTITY="Developer ID Application: Example" NOTARIZE_PROFILE="dm-annotate" scripts/package-release.sh
 ```
