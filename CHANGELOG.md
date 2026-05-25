@@ -6,6 +6,8 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.11 - 2026-05-25
+
 ### Added
 
 - Added App Store Connect API key notarization support for local and GitHub release packaging.
@@ -14,6 +16,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 - Updated install and release docs to reflect Developer ID signed, notarized, stapled Homebrew artifacts.
 - Removed the repo-local Homebrew cask mirror so `BradGroux/tap` is the single cask source of truth.
+
+### Fixed
+
+- Tightened the vertical toolbar layout, moved Compact Presenter into the third top-control position, and removed extra bottom space.
 
 ## 0.1.10 - 2026-05-16
 
