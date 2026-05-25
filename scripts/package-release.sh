@@ -75,10 +75,10 @@ if [[ "${#NOTARIZE_ARGS[@]}" -gt 0 ]]; then
     exit 1
   fi
 
-  xcrun notarytool submit "${ZIP_PATH}" "${NOTARIZE_ARGS[@]}" --wait
-  xcrun stapler staple "${APP_DIR}"
-  xcrun stapler validate "${APP_DIR}"
-  spctl -a -vvv -t exec "${APP_DIR}"
+  xcrun notarytool submit "${ZIP_PATH}" "${NOTARIZE_ARGS[@]}" --wait >&2
+  xcrun stapler staple "${APP_DIR}" >&2
+  xcrun stapler validate "${APP_DIR}" >&2
+  spctl -a -vvv -t exec "${APP_DIR}" >&2
   rm -f "${ZIP_PATH}"
   ditto -c -k --keepParent "${APP_DIR}" "${ZIP_PATH}"
 fi

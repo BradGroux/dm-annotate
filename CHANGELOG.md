@@ -20,6 +20,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 ### Fixed
 
 - Tightened the vertical toolbar layout, moved Compact Presenter into the third top-control position, and removed extra bottom space.
+- Kept notarized release packaging logs off stdout so automation receives only the release zip path.
 
 ## 0.1.10 - 2026-05-16
 
