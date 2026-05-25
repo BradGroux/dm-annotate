@@ -1,9 +1,10 @@
 import CoreGraphics
 
 public enum ToolbarLayoutMetrics {
-    public static let actionButtonCount = 9
+    public static let actionButtonCount = 8
     public static let buttonSize: CGFloat = 30
     public static let gridSpacing: CGFloat = 6
+    public static let wideButtonWidth: CGFloat = (buttonSize * 2) + gridSpacing
     public static let compactColumnCount = 2
     public static let paletteColumnCount = 5
     public static let valueGridColumnCount = 4
@@ -92,13 +93,13 @@ public enum ToolbarLayoutMetrics {
         let menuControlHeight = buttonSize
         let childCount = 10
         let menuControlCount = 2
-        let topControls = 3 + statusControlCount
+        let topControlsHeight = verticalTopControlsHeight(statusControlCount: statusControlCount)
         let toolControls = snapshot.visibleTools.count
         let colorControls = min(snapshot.paletteColors.count, 4) + 2
 
         return outerPadding +
             dragHandleHeight +
-            gridHeight(itemCount: topControls, columns: compactColumnCount) +
+            topControlsHeight +
             dividerHeight +
             gridHeight(itemCount: toolControls, columns: compactColumnCount) +
             dividerHeight +
@@ -108,6 +109,12 @@ public enum ToolbarLayoutMetrics {
             gridHeight(itemCount: actionButtonCount, columns: compactColumnCount) +
             CGFloat(childCount - 1) * gridSpacing +
             contentBottomPadding
+    }
+
+    private static func verticalTopControlsHeight(statusControlCount: Int) -> CGFloat {
+        let baseHeight = buttonSize + gridSpacing + buttonSize
+        guard statusControlCount > 0 else { return baseHeight }
+        return baseHeight + gridSpacing + gridHeight(itemCount: statusControlCount, columns: compactColumnCount)
     }
 
     private static func estimatedHorizontalToolbarWidth(
