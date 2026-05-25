@@ -156,6 +156,10 @@ Optional release environment:
 
 ```sh
 CODESIGN_IDENTITY="Developer ID Application: Example" scripts/package-release.sh
+CODESIGN_IDENTITY="Developer ID Application: Example" \
+NOTARIZE_KEY_PATH="$HOME/private_keys/AuthKey_EXAMPLE.p8" \
+NOTARIZE_KEY_ID="EXAMPLE1234" \
+scripts/package-release.sh
 CODESIGN_IDENTITY="Developer ID Application: Example" NOTARIZE_PROFILE="dm-annotate" scripts/package-release.sh
 ```
 

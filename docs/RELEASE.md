@@ -101,7 +101,27 @@ The UI smoke command builds a release app bundle when no app path is provided, s
 CODESIGN_IDENTITY="Developer ID Application: Example" scripts/package-release.sh
 ```
 
+Check the local keychain for installed signing identities:
+
+```sh
+security find-identity -p codesigning -v
+```
+
 ## Sign and notarize
+
+With an App Store Connect API key:
+
+```sh
+CODESIGN_IDENTITY="Developer ID Application: Example" \
+NOTARIZE_KEY_PATH="$HOME/private_keys/AuthKey_EXAMPLE.p8" \
+NOTARIZE_KEY_ID="EXAMPLE1234" \
+NOTARIZE_ISSUER_ID="00000000-0000-0000-0000-000000000000" \
+scripts/package-release.sh
+```
+
+Omit `NOTARIZE_ISSUER_ID` for Individual API keys. Team API keys require the issuer UUID.
+
+With a stored notarytool profile:
 
 ```sh
 CODESIGN_IDENTITY="Developer ID Application: Example" \
@@ -207,7 +227,7 @@ git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-The workflow fails if the tag does not match `CFBundleShortVersionString`. Apple signing/notarization secrets are all-or-nothing: a partial secret set fails the workflow, no secret set publishes an ad-hoc developer preview, and a complete secret set publishes a signed/notarized release.
+The workflow fails if the tag does not match `CFBundleShortVersionString`. Apple signing/notarization secrets are all-or-nothing: a partial secret set fails the workflow, no secret set publishes an ad-hoc developer preview, and a complete secret set publishes a signed/notarized release. Notarization can use either App Store Connect API key secrets or Apple ID app-specific password secrets, but not both.
 
 The workflow runs:
 
@@ -229,11 +249,20 @@ It then creates a GitHub Release and attaches:
 
 The automated tag workflow publishes ad-hoc signed developer previews until Apple release secrets are configured. With the required secrets present, it publishes Developer ID signed, notarized, stapled release zips and validates Gatekeeper acceptance.
 
-Required repository secrets:
+Required Developer ID signing secrets:
 
 - `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64`: base64-encoded `.p12` export containing the Developer ID Application certificate and private key.
 - `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD`: password for the `.p12` export.
 - `APPLE_DEVELOPER_IDENTITY`: full codesigning identity, for example `Developer ID Application: Example LLC (TEAMID)`.
+
+Required App Store Connect API key notarization secrets:
+
+- `APPLE_NOTARIZATION_KEY_ID`: App Store Connect API key ID.
+- `APPLE_NOTARIZATION_PRIVATE_KEY`: full `.p8` private key contents.
+- `APPLE_NOTARIZATION_ISSUER_ID`: issuer UUID for Team API keys. Leave unset for Individual API keys.
+
+Alternative Apple ID app-specific password notarization secrets:
+
 - `APPLE_NOTARIZATION_APPLE_ID`: Apple ID used for notarization.
 - `APPLE_NOTARIZATION_PASSWORD`: app-specific password for that Apple ID.
 - `APPLE_NOTARIZATION_TEAM_ID`: Apple Developer Team ID.

@@ -17,7 +17,10 @@ jobs:
       APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
       APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
       APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+      APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
       APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+      APPLE_NOTARIZATION_PRIVATE_KEY: ${{ secrets.APPLE_NOTARIZATION_PRIVATE_KEY }}
+      APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
       APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
 
     steps:
@@ -64,16 +67,24 @@ jobs:
             APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
             APPLE_DEVELOPER_IDENTITY
           )
-          notary_names=(
+          apple_id_notary_names=(
             APPLE_NOTARIZATION_APPLE_ID
             APPLE_NOTARIZATION_PASSWORD
             APPLE_NOTARIZATION_TEAM_ID
           )
+          api_key_notary_names=(
+            APPLE_NOTARIZATION_KEY_ID
+            APPLE_NOTARIZATION_PRIVATE_KEY
+          )
 
           cert_present="false"
           notary_present="false"
+          notary_method="none"
           cert_missing=()
-          notary_missing=()
+          apple_id_notary_present="false"
+          apple_id_notary_missing=()
+          api_key_notary_present="false"
+          api_key_notary_missing=()
 
           for name in "${cert_names[@]}"; do
             if [[ -n "${!name:-}" ]]; then
@@ -83,13 +94,24 @@ jobs:
             fi
           done
 
-          for name in "${notary_names[@]}"; do
+          for name in "${apple_id_notary_names[@]}"; do
             if [[ -n "${!name:-}" ]]; then
-              notary_present="true"
+              apple_id_notary_present="true"
             else
-              notary_missing+=("${name}")
+              apple_id_notary_missing+=("${name}")
             fi
           done
+
+          for name in "${api_key_notary_names[@]}"; do
+            if [[ -n "${!name:-}" ]]; then
+              api_key_notary_present="true"
+            else
+              api_key_notary_missing+=("${name}")
+            fi
+          done
+          if [[ -n "${APPLE_NOTARIZATION_ISSUER_ID:-}" ]]; then
+            api_key_notary_present="true"
+          fi
 
           if [[ "${cert_present}" == "true" && "${#cert_missing[@]}" -gt 0 ]]; then
             printf 'Developer ID signing secrets are partially configured. Missing:\n' >&2
@@ -97,10 +119,29 @@ jobs:
             exit 1
           fi
 
-          if [[ "${notary_present}" == "true" && "${#notary_missing[@]}" -gt 0 ]]; then
-            printf 'Notarization secrets are partially configured. Missing:\n' >&2
-            printf -- '- %s\n' "${notary_missing[@]}" >&2
+          if [[ "${apple_id_notary_present}" == "true" && "${#apple_id_notary_missing[@]}" -gt 0 ]]; then
+            printf 'Apple ID notarization secrets are partially configured. Missing:\n' >&2
+            printf -- '- %s\n' "${apple_id_notary_missing[@]}" >&2
             exit 1
+          fi
+
+          if [[ "${api_key_notary_present}" == "true" && "${#api_key_notary_missing[@]}" -gt 0 ]]; then
+            printf 'App Store Connect API key notarization secrets are partially configured. Missing:\n' >&2
+            printf -- '- %s\n' "${api_key_notary_missing[@]}" >&2
+            exit 1
+          fi
+
+          if [[ "${apple_id_notary_present}" == "true" && "${api_key_notary_present}" == "true" ]]; then
+            echo "Configure either Apple ID notarization secrets or App Store Connect API key notarization secrets, not both." >&2
+            exit 1
+          fi
+
+          if [[ "${apple_id_notary_present}" == "true" ]]; then
+            notary_present="true"
+            notary_method="apple-id"
+          elif [[ "${api_key_notary_present}" == "true" ]]; then
+            notary_present="true"
+            notary_method="api-key"
           fi
 
           if [[ "${cert_present}" == "true" && "${notary_present}" != "true" ]]; then
@@ -115,8 +156,10 @@ jobs:
 
           if [[ "${cert_present}" == "true" && "${notary_present}" == "true" ]]; then
             echo "notarize=true" >> "${GITHUB_OUTPUT}"
+            echo "notary_method=${notary_method}" >> "${GITHUB_OUTPUT}"
           else
             echo "notarize=false" >> "${GITHUB_OUTPUT}"
+            echo "notary_method=none" >> "${GITHUB_OUTPUT}"
             echo "No Apple release secrets are configured. Publishing an ad-hoc signed developer preview." >&2
           fi
 
@@ -137,12 +180,30 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain_path}"
           security find-identity -v -p codesigning "${keychain_path}"
 
+      - name: Write App Store Connect API key
+        id: notary_key
+        if: steps.signing.outputs.notary_method == 'api-key'
+        run: |
+          key_path="${RUNNER_TEMP}/AuthKey_${APPLE_NOTARIZATION_KEY_ID}.p8"
+          umask 077
+          printf '%s' "${APPLE_NOTARIZATION_PRIVATE_KEY}" > "${key_path}"
+
+          if ! grep -q "BEGIN PRIVATE KEY" "${key_path}"; then
+            echo "APPLE_NOTARIZATION_PRIVATE_KEY does not look like an App Store Connect API private key." >&2
+            exit 1
+          fi
+
+          echo "key_path=${key_path}" >> "${GITHUB_OUTPUT}"
+
       - name: Package app
         id: package
         env:
           CODESIGN_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+          NOTARIZE_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          NOTARIZE_KEY_PATH: ${{ steps.notary_key.outputs.key_path }}
           NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+          NOTARIZE_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
           NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
         run: |
           if [[ "${{ steps.signing.outputs.notarize }}" == "true" ]]; then
