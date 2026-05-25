@@ -229,7 +229,7 @@ jobs:
           cat > .build/release-notes.md <<'EOF'
           ## dm-annotate ${{ steps.version.outputs.version }}
 
-          Public developer preview of Digital Meld Annotate, a native, local-only macOS screen annotation tool.
+          Public release of Digital Meld Annotate, a native, local-only macOS screen annotation tool.
 
           ### Install
 
