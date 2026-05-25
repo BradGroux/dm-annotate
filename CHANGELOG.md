@@ -13,6 +13,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 ### Changed
 
 - Updated install and release docs to reflect Developer ID signed, notarized, stapled Homebrew artifacts.
+- Removed the repo-local Homebrew cask mirror so `BradGroux/tap` is the single cask source of truth.
 
 ## 0.1.10 - 2026-05-16
 

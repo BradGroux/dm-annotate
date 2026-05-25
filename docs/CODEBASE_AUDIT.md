@@ -4,7 +4,7 @@ Last audited: 2026-05-16
 
 ## Scope
 
-This audit covered the SwiftPM package, AppKit and SwiftUI runtime code, core model layer, tests, scripts, packaging metadata, CI, release workflow, Homebrew cask, and user-facing docs.
+This audit covered the SwiftPM package, AppKit and SwiftUI runtime code, core model layer, tests, scripts, packaging metadata, CI, release workflow, Homebrew distribution docs, and user-facing docs.
 
 ## Current State
 
@@ -15,7 +15,7 @@ Strengths:
 - Core annotation state is isolated in `DMAnnotateCore` and covered by fast Swift Testing tests.
 - Packaging is scriptable through SwiftPM and shell scripts rather than an Xcode-only workflow.
 - The privacy posture is simple and credible: local-only, no accounts, no telemetry, no normal-operation network calls.
-- Release and Homebrew metadata are present and mostly aligned with the current `BradGroux/tap` distribution path.
+- Release metadata and Homebrew distribution docs are aligned with the current `BradGroux/tap` distribution path.
 
 ## Fixed During This Audit
 

@@ -53,7 +53,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the current GitHub release artifact. Until Developer ID signing and notarization are configured, the Gatekeeper command in the Launch section may still be required after Homebrew installs the app.
+Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled.
 
 ## Permissions
 

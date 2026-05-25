@@ -159,19 +159,13 @@ The public Homebrew tap lives at:
 github.com/BradGroux/homebrew-tap
 ```
 
-The installable cask path in that repo is:
+The installable cask path is:
 
 ```text
 BradGroux/homebrew-tap/Casks/dm-annotate.rb
 ```
 
-This repository also keeps a mirror cask at:
-
-```text
-dm-annotate/Casks/dm-annotate.rb
-```
-
-After publishing a new GitHub Release, update both cask files with the release version and SHA256:
+After publishing a new GitHub Release, update the tap cask with the release version and SHA256:
 
 ```sh
 VERSION="0.1.9"
@@ -190,25 +184,16 @@ Validate the public tap before updating install docs:
 export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"
 brew untap BradGroux/tap >/dev/null 2>&1 || true
 brew tap BradGroux/tap
-brew audit --cask --strict --online dm-annotate
-brew install --cask --dry-run dm-annotate
+brew audit --cask --strict --online bradgroux/tap/dm-annotate
+brew install --cask --dry-run bradgroux/tap/dm-annotate
 brew untap BradGroux/tap
 ```
-
-The CI workflow in this repo validates the mirrored cask against committed changes.
 
 Current install path:
 
 ```sh
 brew tap BradGroux/tap
 brew install --cask dm-annotate
-```
-
-Fallback direct tap path:
-
-```sh
-brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
-brew install --cask bradgroux/dm-annotate/dm-annotate
 ```
 
 ## Automated GitHub releases

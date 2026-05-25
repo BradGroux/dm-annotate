@@ -96,13 +96,6 @@ brew install --cask dm-annotate
 
 Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled.
 
-Fallback direct tap path:
-
-```sh
-brew tap BradGroux/dm-annotate https://github.com/BradGroux/dm-annotate
-brew install --cask bradgroux/dm-annotate/dm-annotate
-```
-
 ## Clone
 
 ```sh
