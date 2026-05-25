@@ -6,7 +6,9 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
-- No unreleased changes.
+### Added
+
+- Added App Store Connect API key notarization support for local and GitHub release packaging.
 
 ## 0.1.10 - 2026-05-16
 

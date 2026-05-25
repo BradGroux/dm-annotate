@@ -7,6 +7,53 @@ DIST_DIR=".build/dist"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Packaging/Info.plist)"
 ZIP_PATH="${DIST_DIR}/dm-annotate-${VERSION}-macos.zip"
 
+NOTARIZE_ARGS=()
+NOTARIZE_METHODS=0
+if [[ -n "${NOTARIZE_PROFILE:-}" ]]; then
+  NOTARIZE_METHODS=$((NOTARIZE_METHODS + 1))
+  NOTARIZE_ARGS=(--keychain-profile "${NOTARIZE_PROFILE}")
+fi
+
+if [[ -n "${NOTARIZE_KEY_PATH:-}" || -n "${NOTARIZE_KEY_ID:-}" || -n "${NOTARIZE_ISSUER_ID:-}" ]]; then
+  NOTARIZE_METHODS=$((NOTARIZE_METHODS + 1))
+
+  if [[ -z "${NOTARIZE_KEY_PATH:-}" || -z "${NOTARIZE_KEY_ID:-}" ]]; then
+    echo "error: NOTARIZE_KEY_PATH and NOTARIZE_KEY_ID must be set together. Set NOTARIZE_ISSUER_ID too for Team API keys." >&2
+    exit 1
+  fi
+
+  if [[ ! -f "${NOTARIZE_KEY_PATH}" ]]; then
+    echo "error: NOTARIZE_KEY_PATH does not exist: ${NOTARIZE_KEY_PATH}" >&2
+    exit 1
+  fi
+
+  NOTARIZE_ARGS=(--key "${NOTARIZE_KEY_PATH}" --key-id "${NOTARIZE_KEY_ID}")
+  if [[ -n "${NOTARIZE_ISSUER_ID:-}" ]]; then
+    NOTARIZE_ARGS+=(--issuer "${NOTARIZE_ISSUER_ID}")
+  fi
+fi
+
+if [[ -n "${NOTARIZE_APPLE_ID:-}" || -n "${NOTARIZE_TEAM_ID:-}" || -n "${NOTARIZE_PASSWORD:-}" ]]; then
+  NOTARIZE_METHODS=$((NOTARIZE_METHODS + 1))
+
+  if [[ -z "${NOTARIZE_APPLE_ID:-}" || -z "${NOTARIZE_TEAM_ID:-}" || -z "${NOTARIZE_PASSWORD:-}" ]]; then
+    echo "error: NOTARIZE_APPLE_ID, NOTARIZE_TEAM_ID, and NOTARIZE_PASSWORD must be set together." >&2
+    exit 1
+  fi
+
+  NOTARIZE_ARGS=(--apple-id "${NOTARIZE_APPLE_ID}" --team-id "${NOTARIZE_TEAM_ID}" --password "${NOTARIZE_PASSWORD}")
+fi
+
+if [[ "${NOTARIZE_METHODS}" -gt 1 ]]; then
+  echo "error: choose exactly one notarization credential method: NOTARIZE_PROFILE, App Store Connect API key, or Apple ID password." >&2
+  exit 1
+fi
+
+if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" && "${#NOTARIZE_ARGS[@]}" -eq 0 ]]; then
+  echo "error: notarization is required, but no notarytool credentials were provided." >&2
+  exit 1
+fi
+
 scripts/build-app.sh release >/dev/null
 plutil -lint Packaging/Info.plist >/dev/null
 
@@ -21,23 +68,6 @@ fi
 mkdir -p "${DIST_DIR}"
 rm -f "${ZIP_PATH}"
 ditto -c -k --keepParent "${APP_DIR}" "${ZIP_PATH}"
-
-NOTARIZE_ARGS=()
-if [[ -n "${NOTARIZE_PROFILE:-}" ]]; then
-  NOTARIZE_ARGS=(--keychain-profile "${NOTARIZE_PROFILE}")
-elif [[ -n "${NOTARIZE_APPLE_ID:-}" || -n "${NOTARIZE_TEAM_ID:-}" || -n "${NOTARIZE_PASSWORD:-}" ]]; then
-  if [[ -z "${NOTARIZE_APPLE_ID:-}" || -z "${NOTARIZE_TEAM_ID:-}" || -z "${NOTARIZE_PASSWORD:-}" ]]; then
-    echo "error: NOTARIZE_APPLE_ID, NOTARIZE_TEAM_ID, and NOTARIZE_PASSWORD must be set together." >&2
-    exit 1
-  fi
-
-  NOTARIZE_ARGS=(--apple-id "${NOTARIZE_APPLE_ID}" --team-id "${NOTARIZE_TEAM_ID}" --password "${NOTARIZE_PASSWORD}")
-fi
-
-if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" && "${#NOTARIZE_ARGS[@]}" -eq 0 ]]; then
-  echo "error: notarization is required, but no notarytool credentials were provided." >&2
-  exit 1
-fi
 
 if [[ "${#NOTARIZE_ARGS[@]}" -gt 0 ]]; then
   if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
