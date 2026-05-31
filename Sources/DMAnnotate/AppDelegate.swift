@@ -237,6 +237,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
+            if let byteCount = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber {
+                try AnnotationSessionDocument.validateEncodedByteCount(byteCount.uint64Value)
+            }
             let data = try Data(contentsOf: url)
             let session = try AnnotationSessionDocument.decode(from: data)
                 .retargetingMissingDisplays(

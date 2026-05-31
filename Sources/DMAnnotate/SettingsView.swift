@@ -105,6 +105,7 @@ struct SettingsView: View {
             SettingsPrivacySectionView()
         case .diagnostics:
             SettingsDiagnosticsSectionView(
+                store: store,
                 preferences: preferences,
                 shortcutController: shortcutController,
                 runtimeState: runtimeState

@@ -1,7 +1,9 @@
 import AppKit
+import DMAnnotateCore
 import SwiftUI
 
 struct SettingsDiagnosticsSectionView: View {
+    @ObservedObject var store: AnnotationStore
     @ObservedObject var preferences: PreferencesController
     var shortcutController: ShortcutController
     @ObservedObject var runtimeState: AppRuntimeState
@@ -21,6 +23,9 @@ struct SettingsDiagnosticsSectionView: View {
             SettingsDiagnosticsRow(label: "Screenshot folder", value: preferences.expandedScreenshotFolderURL().path)
             SettingsDiagnosticsRow(label: "Default screenshot output", value: preferences.snapshot.screenshotOutput == .file ? "File" : "Clipboard")
             SettingsDiagnosticsRow(label: "Visible tools", value: "\(preferences.snapshot.visibleTools.count)")
+            SettingsDiagnosticsRow(label: "Annotations", value: "\(store.annotations.count) / \(AnnotationStore.maximumAnnotationCount)")
+            SettingsDiagnosticsRow(label: "Undo depth", value: "\(store.undoDepth) / \(AnnotationStore.maximumUndoDepth)")
+            SettingsDiagnosticsRow(label: "Redo depth", value: "\(store.redoDepth)")
 
             HStack(spacing: 10) {
                 Button("Open Permissions") {
