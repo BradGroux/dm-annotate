@@ -16,6 +16,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private var lastToolbarCompactMode: Bool?
     private var lastVisibleTools: Set<AnnotationTool>?
     private var lastQuickColorCount: Int?
+    private(set) var lastAppliedFrame: CGRect?
     private var suppressMovePersistenceUntil: Date?
 
     init(store: AnnotationStore, preferences: PreferencesController, runtimeState: AppRuntimeState, actions: ToolbarActions) {
@@ -96,11 +97,19 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     }
 
     func resizeToFit() {
+        _ = resizeToFit(using: preferences.snapshot)
+    }
+
+    func resizeToFitAndReturnSize() -> CGSize? {
         resizeToFit(using: preferences.snapshot)
     }
 
     var isVisible: Bool {
         panel?.isVisible == true
+    }
+
+    var currentFrame: CGRect? {
+        panel?.frame
     }
 
     func temporarilyHideForCapture<T>(_ work: () -> T) -> T {
@@ -118,8 +127,9 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         return result
     }
 
-    private func resizeToFit(using snapshot: PreferencesSnapshot) {
-        guard panel != nil else { return }
+    @discardableResult
+    private func resizeToFit(using snapshot: PreferencesSnapshot) -> CGSize? {
+        guard panel != nil else { return nil }
 
         let size = preferredSize(for: snapshot)
         let screen = screenForToolbar(using: snapshot)
@@ -132,6 +142,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
                 self?.saveToolbarOrigin(frame.origin, screen: screen)
             }
         }
+        return size
     }
 
     private func applyToolbarLayout(_ snapshot: PreferencesSnapshot) {
@@ -169,14 +180,17 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private func makePanel() {
         let root = ToolbarContentView(store: store, preferences: preferences, runtimeState: runtimeState, actions: actions)
         let hostingView = NSHostingView(rootView: root)
+        hostingView.sizingOptions = []
+        let initialSize = preferredSize(for: preferences.snapshot)
 
         let panel = ToolbarPanel(
-            contentRect: CGRect(origin: preferences.snapshot.toolbarOrigin, size: preferredSize(for: preferences.snapshot)),
+            contentRect: CGRect(origin: preferences.snapshot.toolbarOrigin, size: initialSize),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
 
+        hostingView.frame = CGRect(origin: .zero, size: initialSize)
         hostingView.autoresizingMask = [.width, .height]
         panel.contentView = hostingView
         panel.isOpaque = false
@@ -293,7 +307,9 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         guard let panel else { return }
 
         suppressMovePersistence(for: interval)
+        lastAppliedFrame = frame
         panel.setFrame(frame, display: display)
+        panel.contentView?.setFrameSize(frame.size)
     }
 
     private func suppressMovePersistence(for interval: TimeInterval) {

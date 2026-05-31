@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     private var statusItem: NSStatusItem?
     private var cancellables: Set<AnyCancellable> = []
     private let launchArguments: Set<String>
+    private static let uiSmokeDefaultsSuiteName = "io.digitalmeld.dm-annotate.smoke"
 
     init(arguments: [String] = CommandLine.arguments) {
         launchArguments = Set(arguments)
@@ -61,9 +62,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     }
 
     private func configureControllers() {
-        let defaults = isUISmokeMode
-            ? UserDefaults(suiteName: "io.digitalmeld.dm-annotate.smoke") ?? .standard
-            : .standard
+        let defaults: UserDefaults
+        if isUISmokeMode {
+            defaults = UserDefaults(suiteName: Self.uiSmokeDefaultsSuiteName) ?? .standard
+            defaults.removePersistentDomain(forName: Self.uiSmokeDefaultsSuiteName)
+        } else {
+            defaults = .standard
+        }
 
         preferences = PreferencesController(store: store, defaults: defaults)
         overlayController = OverlayController(store: store)
@@ -332,14 +337,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 
     private func performUISmoke() {
         var failures: [String] = []
+        let commands = commandPaletteCommands()
 
         toolbarWindowController.show()
         settingsWindowController.show()
         onboardingController.show()
-        commandPaletteController.show(commands: commandPaletteCommands())
+        commandPaletteController.show(commands: commands)
 
-        NSApp.updateWindows()
-        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.10))
+        settleWindows()
 
         if !toolbarWindowController.isVisible {
             failures.append("Toolbar panel is not visible.")
@@ -354,12 +359,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             failures.append("Command palette window is not visible.")
         }
 
+        verifyToolbarLayouts(failures: &failures)
+        verifyCommandPaletteCommands(commands, failures: &failures)
+        verifyToolbarPresetPreferences(failures: &failures)
+
         if failures.isEmpty {
             print("dm-annotate UI smoke OK")
-            print("- toolbar visible")
-            print("- settings visible")
-            print("- permissions visible")
-            print("- command palette visible")
+            print("- core windows visible")
+            print("- toolbar layout states rendered")
+            print("- command palette actions generated")
+            print("- toolbar preset preferences round-tripped")
             NSApp.terminate(nil)
             return
         }
@@ -369,6 +378,146 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             fputs("- \(failure)\n", stderr)
         }
         exit(EXIT_FAILURE)
+    }
+
+    private func settleWindows() {
+        NSApp.updateWindows()
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.10))
+    }
+
+    private func verifyToolbarLayouts(failures: inout [String]) {
+        verifyToolbarLayout("vertical", configure: { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = false
+        }, failures: &failures)
+
+        verifyToolbarLayout("horizontal", configure: { snapshot in
+            snapshot.toolbarOrientation = .horizontal
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = false
+        }, failures: &failures)
+
+        verifyToolbarLayout("collapsed", configure: { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = true
+            snapshot.toolbarCompactMode = false
+        }, failures: &failures)
+
+        verifyToolbarLayout("compact", configure: { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = true
+        }, failures: &failures)
+
+        preferences.update { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = false
+        }
+        toolbarWindowController.show()
+        toolbarWindowController.resizeToFit()
+        settleWindows()
+    }
+
+    private func verifyToolbarLayout(
+        _ name: String,
+        configure: (inout PreferencesSnapshot) -> Void,
+        failures: inout [String]
+    ) {
+        toolbarWindowController.show()
+        toolbarWindowController.centerOnMainScreen()
+        settleWindows()
+
+        preferences.update { snapshot in
+            configure(&snapshot)
+        }
+        toolbarWindowController.show()
+        settleWindows()
+        var expectedSize = toolbarWindowController.resizeToFitAndReturnSize()
+        settleWindows()
+        if let settledSize = toolbarWindowController.resizeToFitAndReturnSize() {
+            expectedSize = settledSize
+        }
+        settleWindows()
+
+        guard toolbarWindowController.isVisible else {
+            failures.append("Toolbar panel is not visible in \(name) layout.")
+            return
+        }
+        guard let frame = toolbarWindowController.currentFrame else {
+            failures.append("Toolbar panel frame is unavailable in \(name) layout.")
+            return
+        }
+
+        guard let expectedSize else {
+            failures.append("Toolbar panel expected size is unavailable in \(name) layout.")
+            return
+        }
+
+        if !frame.size.isApproximatelyEqual(to: expectedSize, tolerance: 2.0) {
+            let requestedSize = toolbarWindowController.lastAppliedFrame?.size.smokeDescription ?? "unknown"
+            failures.append(
+                "Toolbar \(name) layout expected \(expectedSize.smokeDescription), requested \(requestedSize), got \(frame.size.smokeDescription)."
+            )
+        }
+    }
+
+    private func verifyCommandPaletteCommands(_ commands: [CommandPaletteCommand], failures: inout [String]) {
+        let titles = Set(commands.map(\.title))
+        let requiredTitles: Set<String> = [
+            "Save Annotation Session",
+            "Load Annotation Session",
+            "Copy Screenshot as PNG",
+            "Save Screenshot as PNG",
+            "Save Annotations as PNG",
+            "Region Screenshot",
+            "Settings",
+            "Permissions"
+        ]
+        let missingTitles = requiredTitles.subtracting(titles).sorted()
+        if !missingTitles.isEmpty {
+            failures.append("Command palette is missing actions: \(missingTitles.joined(separator: ", ")).")
+        }
+    }
+
+    private func verifyToolbarPresetPreferences(failures: inout [String]) {
+        let displays = Set(NSScreen.screens.map { "\($0.displayID)" })
+        preferences.update { snapshot in
+            snapshot.toolbarOrientation = .horizontal
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = true
+            snapshot.toolbarOrigin = CGPoint(x: 48, y: 96)
+            if let displayID = displays.first {
+                snapshot.toolbarOriginsByDisplayID = [displayID: CGPoint(x: 64, y: 128)]
+            }
+            snapshot.saveToolbarPreset(named: "Smoke Preset")
+        }
+
+        guard let preset = preferences.snapshot.toolbarPresets.last else {
+            failures.append("Toolbar preset smoke did not create a preset.")
+            return
+        }
+
+        preferences.update { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = true
+            snapshot.toolbarCompactMode = false
+            snapshot.toolbarOrigin = CGPoint(x: 12, y: 24)
+            snapshot.toolbarOriginsByDisplayID = [:]
+            snapshot.applyToolbarPreset(preset, availableDisplayIDs: displays)
+        }
+
+        let snapshot = preferences.snapshot
+        if snapshot.toolbarOrientation != .horizontal ||
+            snapshot.toolbarCollapsed ||
+            !snapshot.toolbarCompactMode ||
+            snapshot.toolbarOrigin != CGPoint(x: 48, y: 96) {
+            failures.append("Toolbar preset smoke did not restore orientation, collapsed, compact, and origin values.")
+        }
+        if !displays.isEmpty, snapshot.toolbarOriginsByDisplayID.isEmpty {
+            failures.append("Toolbar preset smoke did not restore display-specific origins.")
+        }
     }
 
     private func commandPaletteCommands() -> [CommandPaletteCommand] {
@@ -481,5 +630,15 @@ private extension AppDelegate {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+private extension CGSize {
+    func isApproximatelyEqual(to other: CGSize, tolerance: CGFloat) -> Bool {
+        abs(width - other.width) <= tolerance && abs(height - other.height) <= tolerance
+    }
+
+    var smokeDescription: String {
+        "\(Int(width.rounded()))x\(Int(height.rounded()))"
     }
 }
