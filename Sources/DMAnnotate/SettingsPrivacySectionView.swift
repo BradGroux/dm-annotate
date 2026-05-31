@@ -11,7 +11,7 @@ struct SettingsPrivacySectionView: View {
             }
 
             SettingsGroup("Permissions") {
-                Text("Screenshots may require Screen Recording permission. Global shortcuts may require Accessibility or Input Monitoring permission.")
+                Text("Screenshots may require Screen Recording permission. Global shortcuts use a consumable event tap and may require Accessibility or Input Monitoring permission. Check Diagnostics if global shortcuts are unavailable.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
