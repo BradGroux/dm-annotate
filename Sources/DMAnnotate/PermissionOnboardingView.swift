@@ -166,7 +166,7 @@ final class PermissionOnboardingViewModel: ObservableObject {
                 kind: .inputMonitoring,
                 title: "Input Monitoring",
                 reason: "May be required by macOS for global keyboard shortcuts, depending on OS version and security settings.",
-                detail: "macOS does not provide a reliable public status check for this permission, so verify it in System Settings.",
+                detail: "macOS does not provide a reliable public status check for this permission. If Diagnostics reports Global shortcuts as unavailable, verify this permission in System Settings.",
                 status: .unknown,
                 buttonTitle: "Open Settings"
             )
@@ -198,7 +198,7 @@ final class PermissionOnboardingViewModel: ObservableObject {
         if accessibility != .granted {
             return "Next: grant Accessibility in System Settings, then return to this window."
         }
-        return "Required permissions are ready. If global shortcuts still miss keystrokes, confirm Input Monitoring in System Settings."
+        return "Required permissions are ready. If Diagnostics reports Global shortcuts as unavailable, confirm Input Monitoring in System Settings and restart shortcuts."
     }
 }
 

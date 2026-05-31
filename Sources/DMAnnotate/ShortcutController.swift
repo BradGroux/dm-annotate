@@ -3,17 +3,17 @@ import Combine
 import DMAnnotateCore
 
 @MainActor
-final class ShortcutController {
+final class ShortcutController: ObservableObject {
     private let preferences: PreferencesController
     private let store: AnnotationStore
     private let actions: AppActions
     private var consumableGlobalMonitor: ConsumableGlobalShortcutMonitor?
-    private var globalMonitor: Any?
     private var localMonitor: Any?
     private var shortcutPreferencesCancellable: AnyCancellable?
     private var appActivationCancellables: Set<AnyCancellable> = []
     private var escapeQuitDeadline: Date?
     private let doubleEscapeInterval: TimeInterval = 0.85
+    @Published private(set) var globalShortcutMonitorState: GlobalShortcutMonitorState = .inactive
 
     init(preferences: PreferencesController, store: AnnotationStore, actions: AppActions) {
         self.preferences = preferences
@@ -24,21 +24,7 @@ final class ShortcutController {
     func start() {
         stop()
 
-        let consumableMonitor = ConsumableGlobalShortcutMonitor(
-            actionsByDescriptor: ShortcutResolver.globallyDispatchableActions(in: preferences.snapshot.shortcuts)
-        ) { [weak self] action in
-            Task { @MainActor in
-                self?.perform(action)
-            }
-        }
-        if consumableMonitor.start() {
-            consumableMonitor.setPassesEventsThrough(NSApp.isActive)
-            consumableGlobalMonitor = consumableMonitor
-        }
-
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            _ = self?.handle(event, scope: .global)
-        }
+        configureGlobalShortcutMonitor(shortcuts: preferences.snapshot.shortcuts)
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, handle(event, scope: .local) else { return event }
@@ -48,10 +34,9 @@ final class ShortcutController {
         shortcutPreferencesCancellable = preferences.$snapshot
             .map(\.shortcuts)
             .removeDuplicates()
+            .dropFirst()
             .sink { [weak self] shortcuts in
-                self?.consumableGlobalMonitor?.update(
-                    actionsByDescriptor: ShortcutResolver.globallyDispatchableActions(in: shortcuts)
-                )
+                self?.configureGlobalShortcutMonitor(shortcuts: shortcuts)
             }
 
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -72,15 +57,37 @@ final class ShortcutController {
         consumableGlobalMonitor = nil
         shortcutPreferencesCancellable = nil
         appActivationCancellables.removeAll()
-
-        if let globalMonitor {
-            NSEvent.removeMonitor(globalMonitor)
-            self.globalMonitor = nil
-        }
+        globalShortcutMonitorState = .inactive
         if let localMonitor {
             NSEvent.removeMonitor(localMonitor)
             self.localMonitor = nil
         }
+    }
+
+    private func configureGlobalShortcutMonitor(shortcuts: [ShortcutAction: String]) {
+        consumableGlobalMonitor?.stop()
+        consumableGlobalMonitor = nil
+
+        let actionsByDescriptor = ShortcutResolver.globallyDispatchableActions(in: shortcuts)
+        guard !actionsByDescriptor.isEmpty else {
+            globalShortcutMonitorState = .resolved(actionCount: 0, didStartConsumableTap: false)
+            return
+        }
+
+        let consumableMonitor = ConsumableGlobalShortcutMonitor(actionsByDescriptor: actionsByDescriptor) { [weak self] action in
+            Task { @MainActor in
+                self?.perform(action)
+            }
+        }
+        let didStart = consumableMonitor.start()
+        globalShortcutMonitorState = .resolved(
+            actionCount: actionsByDescriptor.count,
+            didStartConsumableTap: didStart
+        )
+        guard didStart else { return }
+
+        consumableMonitor.setPassesEventsThrough(NSApp.isActive)
+        consumableGlobalMonitor = consumableMonitor
     }
 
     func handle(_ event: NSEvent, scope: ShortcutEventScope = .local) -> Bool {

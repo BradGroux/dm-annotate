@@ -774,6 +774,46 @@ import Testing
     #expect(actionsByDescriptor["control+option+p"] == nil)
 }
 
+@Test func globalShortcutMonitorStateDisablesDispatchWhenTapUnavailable() {
+    let actionsByDescriptor = ShortcutResolver.globallyDispatchableActions(in: [
+        .regionScreenshot: "option+command+r",
+        .showSettings: "command+,"
+    ])
+
+    let active = GlobalShortcutMonitorState.resolved(
+        actionCount: actionsByDescriptor.count,
+        didStartConsumableTap: true
+    )
+    let unavailable = GlobalShortcutMonitorState.resolved(
+        actionCount: actionsByDescriptor.count,
+        didStartConsumableTap: false
+    )
+
+    #expect(actionsByDescriptor.count == 1)
+    #expect(active == .consumable(actionCount: 1))
+    #expect(active.allowsGlobalShortcutDispatch)
+    #expect(!active.needsAttention)
+    #expect(unavailable == .eventTapUnavailable(actionCount: 1))
+    #expect(!unavailable.allowsGlobalShortcutDispatch)
+    #expect(unavailable.needsAttention)
+}
+
+@Test func globalShortcutMonitorStateTreatsLocalOnlyShortcutsAsNoGlobalShortcuts() {
+    let actionsByDescriptor = ShortcutResolver.globallyDispatchableActions(in: [
+        .showSettings: "command+,",
+        .commandPalette: "command+k"
+    ])
+    let state = GlobalShortcutMonitorState.resolved(
+        actionCount: actionsByDescriptor.count,
+        didStartConsumableTap: false
+    )
+
+    #expect(actionsByDescriptor.isEmpty)
+    #expect(state == .noGlobalShortcuts)
+    #expect(!state.allowsGlobalShortcutDispatch)
+    #expect(!state.needsAttention)
+}
+
 @Test func screenshotNamerAvoidsSameSecondCollisions() {
     let folder = URL(fileURLWithPath: "/tmp", isDirectory: true)
     let date = Date(timeIntervalSince1970: 1_777_777_777)

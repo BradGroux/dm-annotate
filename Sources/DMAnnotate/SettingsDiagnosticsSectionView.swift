@@ -5,7 +5,7 @@ import SwiftUI
 struct SettingsDiagnosticsSectionView: View {
     @ObservedObject var store: AnnotationStore
     @ObservedObject var preferences: PreferencesController
-    var shortcutController: ShortcutController
+    @ObservedObject var shortcutController: ShortcutController
     @ObservedObject var runtimeState: AppRuntimeState
 
     var body: some View {
@@ -19,6 +19,10 @@ struct SettingsDiagnosticsSectionView: View {
             SettingsDiagnosticsRow(label: "Screen Recording", value: PermissionChecks.screenRecordingStatus().label)
             SettingsDiagnosticsRow(label: "Accessibility", value: PermissionChecks.accessibilityStatus().label)
             SettingsDiagnosticsRow(label: "Input Monitoring", value: "Check Manually")
+            SettingsDiagnosticsRow(label: "Global shortcuts", value: shortcutController.globalShortcutMonitorState.label)
+            if let shortcutDetail = shortcutController.globalShortcutMonitorState.detail {
+                SettingsDiagnosticsRow(label: "Shortcut note", value: shortcutDetail)
+            }
             SettingsDiagnosticsRow(label: "Display count", value: "\(NSScreen.screens.count)")
             SettingsDiagnosticsRow(label: "Screenshot folder", value: preferences.expandedScreenshotFolderURL().path)
             SettingsDiagnosticsRow(label: "Default screenshot output", value: preferences.snapshot.screenshotOutput == .file ? "File" : "Clipboard")
