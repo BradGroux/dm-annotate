@@ -362,6 +362,10 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
 
 public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
     public static let currentVersion = 1
+    public static let maximumEncodedByteCount: UInt64 = 10 * 1024 * 1024
+    public static let maximumPointsPerAnnotation = 20_000
+    public static let maximumTextLength = 8_000
+    public static let maximumCoordinateMagnitude: CGFloat = 1_000_000
 
     public var version: Int
     public var createdAt: Date
@@ -405,9 +409,20 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
         guard version == Self.currentVersion else {
             throw AnnotationSessionError.unsupportedVersion(version)
         }
+        guard Self.isValidColor(currentColor) else {
+            throw AnnotationSessionError.invalidCurrentColor
+        }
+
+        let nonEmptyAnnotations = annotations.filter { !$0.points.isEmpty }
+        guard nonEmptyAnnotations.count <= AnnotationStore.maximumAnnotationCount else {
+            throw AnnotationSessionError.tooManyAnnotations(
+                count: nonEmptyAnnotations.count,
+                maximum: AnnotationStore.maximumAnnotationCount
+            )
+        }
 
         var copy = self
-        copy.annotations = annotations.filter { !$0.points.isEmpty }
+        copy.annotations = try nonEmptyAnnotations.map(Self.validatedAnnotation)
         copy.strokeWidth = AnnotationStore.normalizedStrokeWidth(strokeWidth)
         copy.textFontSize = AnnotationStore.normalizedTextFontSize(textFontSize)
         return copy
@@ -437,19 +452,97 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
     }
 
     public static func decode(from data: Data) throws -> AnnotationSessionDocument {
+        try validateEncodedByteCount(UInt64(data.count))
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(AnnotationSessionDocument.self, from: data).validated()
+    }
+
+    public static func validateEncodedByteCount(_ byteCount: UInt64) throws {
+        guard byteCount <= maximumEncodedByteCount else {
+            throw AnnotationSessionError.fileTooLarge(byteCount: byteCount, maximum: maximumEncodedByteCount)
+        }
+    }
+
+    private static func validatedAnnotation(_ annotation: AnnotationItem) throws -> AnnotationItem {
+        guard annotation.points.count <= maximumPointsPerAnnotation else {
+            throw AnnotationSessionError.tooManyPoints(
+                annotationID: annotation.id,
+                count: annotation.points.count,
+                maximum: maximumPointsPerAnnotation
+            )
+        }
+
+        guard annotation.points.allSatisfy({ point in
+            point.x.isFinite &&
+                point.y.isFinite &&
+                abs(point.x) <= maximumCoordinateMagnitude &&
+                abs(point.y) <= maximumCoordinateMagnitude
+        }) else {
+            throw AnnotationSessionError.invalidGeometry(annotationID: annotation.id)
+        }
+
+        guard isValidColor(annotation.color) else {
+            throw AnnotationSessionError.invalidColor(annotationID: annotation.id)
+        }
+
+        guard annotation.lineWidth.isFinite, annotation.fontSize.isFinite else {
+            throw AnnotationSessionError.invalidStyle(annotationID: annotation.id)
+        }
+
+        guard annotation.text.count <= maximumTextLength else {
+            throw AnnotationSessionError.textTooLong(
+                annotationID: annotation.id,
+                count: annotation.text.count,
+                maximum: maximumTextLength
+            )
+        }
+
+        var copy = annotation
+        copy.lineWidth = AnnotationStore.normalizedStrokeWidth(annotation.lineWidth)
+        copy.fontSize = AnnotationStore.normalizedTextFontSize(annotation.fontSize)
+        return copy
+    }
+
+    private static func isValidColor(_ color: RGBAColor) -> Bool {
+        [color.red, color.green, color.blue, color.alpha].allSatisfy {
+            $0.isFinite && (0...1).contains($0)
+        }
     }
 }
 
 public enum AnnotationSessionError: LocalizedError, Equatable {
     case unsupportedVersion(Int)
+    case invalidCurrentColor
+    case fileTooLarge(byteCount: UInt64, maximum: UInt64)
+    case tooManyAnnotations(count: Int, maximum: Int)
+    case tooManyPoints(annotationID: UUID, count: Int, maximum: Int)
+    case invalidGeometry(annotationID: UUID)
+    case invalidColor(annotationID: UUID)
+    case invalidStyle(annotationID: UUID)
+    case textTooLong(annotationID: UUID, count: Int, maximum: Int)
 
     public var errorDescription: String? {
         switch self {
         case .unsupportedVersion(let version):
             "Unsupported annotation session version \(version)."
+        case .invalidCurrentColor:
+            "Annotation session contains invalid current color values."
+        case .fileTooLarge(let byteCount, let maximum):
+            "Annotation session is too large (\(byteCount) bytes). Maximum supported size is \(maximum) bytes."
+        case .tooManyAnnotations(let count, let maximum):
+            "Annotation session contains \(count) annotations. Maximum supported count is \(maximum)."
+        case .tooManyPoints(let annotationID, let count, let maximum):
+            "Annotation \(annotationID) contains \(count) points. Maximum supported count is \(maximum)."
+        case .invalidGeometry(let annotationID):
+            "Annotation \(annotationID) contains invalid geometry."
+        case .invalidColor(let annotationID):
+            "Annotation \(annotationID) contains invalid color values."
+        case .invalidStyle(let annotationID):
+            "Annotation \(annotationID) contains invalid style values."
+        case .textTooLong(let annotationID, let count, let maximum):
+            "Annotation \(annotationID) contains \(count) characters. Maximum supported count is \(maximum)."
         }
     }
 }

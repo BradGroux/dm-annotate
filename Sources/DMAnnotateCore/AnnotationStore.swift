@@ -10,6 +10,8 @@ public final class AnnotationStore: ObservableObject {
     nonisolated public static let supportedTextFontSizes: [CGFloat] = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 96]
     nonisolated public static let minimumTextFontSize: CGFloat = 8
     nonisolated public static let maximumTextFontSize: CGFloat = 160
+    nonisolated public static let maximumAnnotationCount = 10_000
+    nonisolated public static let maximumUndoDepth = 200
 
     @Published public private(set) var annotations: [AnnotationItem]
     @Published public var activeTool: AnnotationTool
@@ -132,11 +134,15 @@ public final class AnnotationStore: ObservableObject {
         )
     }
 
-    public func add(_ annotation: AnnotationItem) {
+    @discardableResult
+    public func add(_ annotation: AnnotationItem) -> Bool {
+        guard annotations.count < Self.maximumAnnotationCount else { return false }
+
         annotations.append(annotation)
-        undoStack.append(.add(annotation))
+        appendUndo(.add(annotation))
         redoStack.removeAll()
         updateHistoryFlags()
+        return true
     }
 
     public func annotation(id: AnnotationItem.ID) -> AnnotationItem? {
@@ -154,7 +160,7 @@ public final class AnnotationStore: ObservableObject {
         guard previous.id == next.id, previous != next else { return }
         guard update(next) else { return }
 
-        undoStack.append(.update(previous: previous, next: next))
+        appendUndo(.update(previous: previous, next: next))
         redoStack.removeAll()
         updateHistoryFlags()
     }
@@ -171,7 +177,7 @@ public final class AnnotationStore: ObservableObject {
         if let selectedAnnotationID, removedIDs.contains(selectedAnnotationID) {
             self.selectedAnnotationID = nil
         }
-        undoStack.append(.remove(removed))
+        appendUndo(.remove(removed))
         redoStack.removeAll()
         updateHistoryFlags()
     }
@@ -182,7 +188,7 @@ public final class AnnotationStore: ObservableObject {
         let previous = annotations
         annotations.removeAll()
         selectedAnnotationID = nil
-        undoStack.append(.clear(previous))
+        appendUndo(.clear(previous))
         redoStack.removeAll()
         updateHistoryFlags()
     }
@@ -205,7 +211,7 @@ public final class AnnotationStore: ObservableObject {
             replace(id: next.id, with: previous)
         }
 
-        redoStack.append(action)
+        appendRedo(action)
         updateHistoryFlags()
     }
 
@@ -214,7 +220,9 @@ public final class AnnotationStore: ObservableObject {
 
         switch action {
         case .add(let item):
-            annotations.append(item)
+            if annotations.count < Self.maximumAnnotationCount {
+                annotations.append(item)
+            }
         case .remove(let items):
             let removedIDs = Set(items.map(\.item.id))
             annotations.removeAll { removedIDs.contains($0.id) }
@@ -228,7 +236,7 @@ public final class AnnotationStore: ObservableObject {
             replace(id: previous.id, with: next)
         }
 
-        undoStack.append(action)
+        appendUndo(action)
         updateHistoryFlags()
     }
 
@@ -280,6 +288,14 @@ public final class AnnotationStore: ObservableObject {
         selectedAnnotationID.flatMap { annotation(id: $0) }
     }
 
+    public var undoDepth: Int {
+        undoStack.count
+    }
+
+    public var redoDepth: Int {
+        redoStack.count
+    }
+
     @discardableResult
     public func deleteSelectedAnnotation() -> Bool {
         guard let selectedAnnotationID,
@@ -290,7 +306,7 @@ public final class AnnotationStore: ObservableObject {
         let removed = RemovedAnnotation(index: index, item: annotations[index])
         annotations.remove(at: index)
         self.selectedAnnotationID = nil
-        undoStack.append(.remove([removed]))
+        appendUndo(.remove([removed]))
         redoStack.removeAll()
         updateHistoryFlags()
         return true
@@ -357,6 +373,21 @@ public final class AnnotationStore: ObservableObject {
     private func updateHistoryFlags() {
         canUndo = !undoStack.isEmpty
         canRedo = !redoStack.isEmpty
+    }
+
+    private func appendUndo(_ action: HistoryAction) {
+        undoStack.append(action)
+        trimHistory(&undoStack)
+    }
+
+    private func appendRedo(_ action: HistoryAction) {
+        redoStack.append(action)
+        trimHistory(&redoStack)
+    }
+
+    private func trimHistory(_ stack: inout [HistoryAction]) {
+        guard stack.count > Self.maximumUndoDepth else { return }
+        stack.removeFirst(stack.count - Self.maximumUndoDepth)
     }
 
     private func replace(id: AnnotationItem.ID, with annotation: AnnotationItem) {

@@ -34,6 +34,53 @@ import Testing
 }
 
 @MainActor
+@Test func undoHistoryIsCappedForLongSessions() {
+    let store = AnnotationStore()
+
+    for index in 0..<(AnnotationStore.maximumUndoDepth + 5) {
+        store.add(
+            AnnotationItem(
+                displayID: 1,
+                kind: .pen,
+                points: [CGPoint(x: CGFloat(index), y: 0)],
+                color: .red,
+                lineWidth: 3
+            )
+        )
+    }
+
+    #expect(store.undoDepth == AnnotationStore.maximumUndoDepth)
+    #expect(store.canUndo)
+}
+
+@MainActor
+@Test func addRejectsAnnotationsPastLiveLimit() {
+    let annotations = (0..<AnnotationStore.maximumAnnotationCount).map { index in
+        AnnotationItem(
+            displayID: 1,
+            kind: .pen,
+            points: [CGPoint(x: CGFloat(index), y: 0)],
+            color: .red,
+            lineWidth: 3
+        )
+    }
+    let store = AnnotationStore(annotations: annotations)
+    let accepted = store.add(
+        AnnotationItem(
+            displayID: 1,
+            kind: .pen,
+            points: [CGPoint(x: 0, y: 1)],
+            color: .blue,
+            lineWidth: 3
+        )
+    )
+
+    #expect(!accepted)
+    #expect(store.annotations.count == AnnotationStore.maximumAnnotationCount)
+    #expect(store.undoDepth == 0)
+}
+
+@MainActor
 @Test func eraseOnlyRemovesTouchedAnnotationsOnSameDisplay() {
     let store = AnnotationStore()
     let touched = AnnotationItem(
@@ -347,6 +394,218 @@ import Testing
     #expect(!restored.canUndo)
 }
 
+@Test func annotationSessionRejectsOversizedEncodedFiles() {
+    expectSessionError(.fileTooLarge(
+        byteCount: AnnotationSessionDocument.maximumEncodedByteCount + 1,
+        maximum: AnnotationSessionDocument.maximumEncodedByteCount
+    )) {
+        try AnnotationSessionDocument.validateEncodedByteCount(AnnotationSessionDocument.maximumEncodedByteCount + 1)
+    }
+}
+
+@Test func annotationSessionRejectsTooManyAnnotationsAndPoints() {
+    let tooManyAnnotations = (0...AnnotationStore.maximumAnnotationCount).map { index in
+        AnnotationItem(
+            displayID: 1,
+            kind: .pen,
+            points: [CGPoint(x: CGFloat(index), y: 0)],
+            color: .red,
+            lineWidth: 3
+        )
+    }
+    let crowdedDocument = AnnotationSessionDocument(
+        annotations: tooManyAnnotations,
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+    let tooManyPointsID = UUID()
+    let tooManyPointsDocument = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: tooManyPointsID,
+                displayID: 1,
+                kind: .pen,
+                points: (0...AnnotationSessionDocument.maximumPointsPerAnnotation).map { CGPoint(x: CGFloat($0), y: 0) },
+                color: .red,
+                lineWidth: 3
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    expectSessionError(.tooManyAnnotations(
+        count: AnnotationStore.maximumAnnotationCount + 1,
+        maximum: AnnotationStore.maximumAnnotationCount
+    )) {
+        _ = try crowdedDocument.validated()
+    }
+    expectSessionError(.tooManyPoints(
+        annotationID: tooManyPointsID,
+        count: AnnotationSessionDocument.maximumPointsPerAnnotation + 1,
+        maximum: AnnotationSessionDocument.maximumPointsPerAnnotation
+    )) {
+        _ = try tooManyPointsDocument.validated()
+    }
+}
+
+@Test func annotationSessionRejectsInvalidAnnotationGeometry() {
+    let annotationID = UUID()
+    let document = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: annotationID,
+                displayID: 1,
+                kind: .pen,
+                points: [CGPoint(x: AnnotationSessionDocument.maximumCoordinateMagnitude + 1, y: 0)],
+                color: .red,
+                lineWidth: 3
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    expectSessionError(.invalidGeometry(annotationID: annotationID)) {
+        _ = try document.validated()
+    }
+}
+
+@Test func annotationSessionRejectsInvalidColorAndLongText() {
+    let badColorID = UUID()
+    let longTextID = UUID()
+    let badColorDocument = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: badColorID,
+                displayID: 1,
+                kind: .pen,
+                points: [CGPoint(x: 0, y: 0)],
+                color: RGBAColor(red: 1.2, green: 0, blue: 0),
+                lineWidth: 3
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+    let longTextDocument = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: longTextID,
+                displayID: 1,
+                kind: .text,
+                points: [CGPoint(x: 0, y: 0)],
+                color: .red,
+                lineWidth: 3,
+                text: String(repeating: "a", count: AnnotationSessionDocument.maximumTextLength + 1)
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    expectSessionError(.invalidColor(annotationID: badColorID)) {
+        _ = try badColorDocument.validated()
+    }
+    expectSessionError(.textTooLong(
+        annotationID: longTextID,
+        count: AnnotationSessionDocument.maximumTextLength + 1,
+        maximum: AnnotationSessionDocument.maximumTextLength
+    )) {
+        _ = try longTextDocument.validated()
+    }
+}
+
+@Test func annotationSessionRejectsInvalidCurrentColor() {
+    let document = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                displayID: 1,
+                kind: .pen,
+                points: [CGPoint(x: 0, y: 0)],
+                color: .red,
+                lineWidth: 3
+            )
+        ],
+        currentColor: RGBAColor(red: 0, green: -0.1, blue: 0),
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    expectSessionError(.invalidCurrentColor) {
+        _ = try document.validated()
+    }
+}
+
+@Test func annotationSessionNormalizesValidImportedStyles() throws {
+    let annotationID = UUID()
+    let document = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: annotationID,
+                displayID: 1,
+                kind: .text,
+                points: [CGPoint(x: 0, y: 0)],
+                color: .red,
+                lineWidth: 500,
+                text: "Imported",
+                fontSize: -5
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 500,
+        textFontSize: -5,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    let validated = try document.validated()
+
+    #expect(validated.annotations.first?.id == annotationID)
+    #expect(validated.annotations.first?.lineWidth == AnnotationStore.maximumStrokeWidth)
+    #expect(validated.annotations.first?.fontSize == AnnotationStore.minimumTextFontSize)
+    #expect(validated.strokeWidth == AnnotationStore.maximumStrokeWidth)
+    #expect(validated.textFontSize == AnnotationStore.minimumTextFontSize)
+}
+
 @Test func toolbarPresetsApplyOnlyAvailableDisplays() {
     var snapshot = PreferencesSnapshot(
         toolbarOrientation: .horizontal,
@@ -655,4 +914,15 @@ import Testing
     #expect(PreferencesSnapshot.normalizedVisibleTools([]) == [.cursor, .pen])
     #expect(PreferencesSnapshot.normalizedVisibleTools([.whiteboard]) == [.cursor, .whiteboard, .blackboard])
     #expect(PreferencesSnapshot.normalizedVisibleTools([.blackboard]) == [.cursor, .whiteboard, .blackboard])
+}
+
+private func expectSessionError(_ expected: AnnotationSessionError, operation: () throws -> Void) {
+    do {
+        try operation()
+        Issue.record("Expected \(expected), but no error was thrown.")
+    } catch let error as AnnotationSessionError {
+        #expect(error == expected)
+    } catch {
+        Issue.record("Expected \(expected), but received \(error).")
+    }
 }
