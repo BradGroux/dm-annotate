@@ -47,7 +47,7 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 - Local settings for theme, toolbar, tooltips, visible tools, screenshot destination, colors, and shortcuts
 - Permission warning in the toolbar when Screen Recording or Accessibility is missing
 - Diagnostics view for local issue triage
-- Consumable global shortcut handling with local fallback and duplicate shortcut warnings
+- Consumable global shortcut handling with Diagnostics warnings and duplicate shortcut detection
 
 ## Documentation
 
@@ -69,7 +69,7 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 - Input Monitoring may be required by macOS for global keyboard shortcuts, depending on OS version and security settings.
 - Swift 6.1 compatible toolchain and Xcode command line tools for local source builds.
 
-The first-run onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. It refreshes when you return from System Settings, and you can reopen it from **Permissions...** in the app menu or menu bar item. Consumable global shortcuts use a native macOS event tap when permission is available; otherwise the app falls back to normal global monitoring.
+The first-run onboarding window checks these permissions and links to the relevant **System Settings > Privacy & Security** panes. It refreshes when you return from System Settings, and you can reopen it from **Permissions...** in the app menu or menu bar item. Consumable global shortcuts use a native macOS event tap when permission is available; if macOS denies that tap, Diagnostics reports the failure and global shortcuts stay disabled until permissions are fixed.
 
 ## Local Preview Gatekeeper Step
 

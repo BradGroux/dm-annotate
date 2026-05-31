@@ -65,7 +65,7 @@ macOS may require:
 
 The onboarding window shows current permission status, links to the relevant System Settings panes, and refreshes when the app becomes active again after you return from System Settings. Reopen it from **Permissions...** in the app menu or menu bar item.
 
-Consumable global shortcuts use a native macOS event tap so app shortcuts do not leak into the foreground app. If macOS denies that event tap, `dm-annotate` falls back to normal global monitoring; grant Accessibility and confirm Input Monitoring if shortcuts are observed but not consumed.
+Consumable global shortcuts use a native macOS event tap so app shortcuts do not leak into the foreground app. If macOS denies that event tap, `dm-annotate` disables global shortcut dispatch and reports the failure in Diagnostics; grant Accessibility, confirm Input Monitoring, and restart shortcuts.
 
 ## Toolbar
 
