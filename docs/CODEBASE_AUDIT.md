@@ -40,9 +40,9 @@ Strengths:
 - Release docs now include the same package smoke and SHA256 checks that CI runs.
 - Release workflow signing notes now distinguish local ad-hoc builds from required signed/notarized tag releases.
 - Release zip verification now installs the generated archive into a temporary directory, checks bundle metadata and signatures, and runs a permission-free launch smoke mode.
-- Local UI smoke now verifies toolbar, settings, permissions, and command palette windows can appear from a packaged app startup path.
+- Local UI smoke now verifies toolbar, settings, permissions, and command palette windows can appear from a packaged app startup path, then exercises toolbar layout states, command palette action generation, and toolbar preset preference round-tripping.
 - Permission onboarding now refreshes when reopened or when the app becomes active after returning from System Settings, with a direct next-step prompt.
-- Eligible global shortcuts now use a native consumable event-tap path, while local shortcuts and the existing global monitor remain as fallback behavior.
+- Eligible global shortcuts now use a native consumable event-tap path, and Diagnostics surfaces event-tap failures instead of silently falling back to non-consumable global shortcuts.
 - Settings sections now live in focused SwiftUI views with shared form components, leaving `SettingsView` responsible for navigation and layout shell only.
 - Toolbar tool selection, stroke/text controls, screenshot actions, and shared button/tooltip styles now live in focused SwiftUI views.
 - Screenshot export now supports transparent annotation-only PNGs alongside the default flattened annotated screenshots.
@@ -50,13 +50,11 @@ Strengths:
 - Select mode now supports placed annotation move, delete, recolor, stroke sizing, and text style edits with undo/redo.
 - Toolbar layout presets now save and apply local display-aware toolbar layouts.
 - Compact presenter mode now exposes the active tool, color, stroke width, undo, delete/clear, and cursor controls in a smaller toolbar.
-- Tagged GitHub releases now validate complete Developer ID signing and notarization secrets when configured, while still allowing explicit ad-hoc developer-preview releases until #5 is complete.
+- Tagged GitHub releases now validate complete Developer ID signing and notarization for public artifacts, while still allowing explicit ad-hoc developer-preview releases.
 
 ## Remaining Refactor Targets
 
 
 ## Improvement Backlog
 
-- Add signed-release secret values in GitHub Actions before cutting the next polished public tag.
 - Add richer resize handles for direct mouse resizing of selected shapes.
-- Add UI smoke assertions for session menus, compact toolbar mode, and toolbar preset settings once window-level automation is practical in CI.
