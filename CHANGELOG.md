@@ -6,6 +6,26 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.12 - 2026-05-31
+
+### Added
+
+- Added selected-annotation toolbar action sizing coverage so edit controls fit when an annotation is selected.
+- Added diagnostics for global shortcut event-tap availability.
+- Expanded packaged UI smoke coverage for toolbar layout states, command palette actions, and toolbar preset preference round-tripping.
+
+### Changed
+
+- Keep the cursor and a recovery drawing tool available when visible toolbar tools are customized.
+- Disable global shortcut dispatch when macOS denies the consumable event tap instead of falling back to non-consumable global monitoring.
+
+### Fixed
+
+- Prevent starting duplicate region screenshot selection windows.
+- Harden annotation session loading against oversized files, excessive annotation counts, excessive point counts, invalid geometry, invalid colors, and long text payloads.
+- Cap live undo history for long sessions.
+- Keep AppKit toolbar panel sizing controller-owned across SwiftUI layout changes.
+
 ## 0.1.11 - 2026-05-25
 
 ### Added
