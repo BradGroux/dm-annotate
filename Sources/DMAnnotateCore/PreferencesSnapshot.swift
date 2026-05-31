@@ -152,9 +152,18 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
 
     public static func normalizedVisibleTools(_ tools: Set<AnnotationTool>) -> Set<AnnotationTool> {
         var normalized = tools
-        if normalized.contains(.whiteboard), !normalized.contains(.blackboard) {
+
+        normalized.insert(.cursor)
+
+        if normalized.contains(.whiteboard) || normalized.contains(.blackboard) {
+            normalized.insert(.whiteboard)
             normalized.insert(.blackboard)
         }
+
+        if normalized.count == 1 {
+            normalized.insert(.pen)
+        }
+
         return normalized
     }
 

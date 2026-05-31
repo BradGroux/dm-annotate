@@ -21,7 +21,8 @@ public enum ToolbarLayoutMetrics {
     public static func preferredSize(
         for snapshot: PreferencesSnapshot,
         visibleFrame: CGRect,
-        statusControlCount: Int
+        statusControlCount: Int,
+        selectedActionButtonCount: Int = 0
     ) -> CGSize {
         if snapshot.toolbarCollapsed {
             return collapsedPanelSize
@@ -36,12 +37,26 @@ public enum ToolbarLayoutMetrics {
             let availableHeight = max(collapsedPanelSize.height, visibleFrame.height - 24)
             return CGSize(
                 width: verticalPanelWidth,
-                height: min(estimatedVerticalToolbarHeight(for: snapshot, statusControlCount: statusControlCount), availableHeight)
+                height: min(
+                    estimatedVerticalToolbarHeight(
+                        for: snapshot,
+                        statusControlCount: statusControlCount,
+                        selectedActionButtonCount: selectedActionButtonCount
+                    ),
+                    availableHeight
+                )
             )
         case .horizontal:
             let availableWidth = max(120, visibleFrame.width - 24)
             return CGSize(
-                width: min(estimatedHorizontalToolbarWidth(for: snapshot, statusControlCount: statusControlCount), availableWidth),
+                width: min(
+                    estimatedHorizontalToolbarWidth(
+                        for: snapshot,
+                        statusControlCount: statusControlCount,
+                        selectedActionButtonCount: selectedActionButtonCount
+                    ),
+                    availableWidth
+                ),
                 height: horizontalPanelHeight
             )
         }
@@ -84,7 +99,8 @@ public enum ToolbarLayoutMetrics {
 
     private static func estimatedVerticalToolbarHeight(
         for snapshot: PreferencesSnapshot,
-        statusControlCount: Int
+        statusControlCount: Int,
+        selectedActionButtonCount: Int
     ) -> CGFloat {
         let outerPadding: CGFloat = 12
         let contentBottomPadding: CGFloat = 6
@@ -96,6 +112,7 @@ public enum ToolbarLayoutMetrics {
         let topControlsHeight = verticalTopControlsHeight(statusControlCount: statusControlCount)
         let toolControls = snapshot.visibleTools.count
         let colorControls = min(snapshot.paletteColors.count, 4) + 2
+        let actionControls = actionButtonCount + max(selectedActionButtonCount, 0)
 
         return outerPadding +
             dragHandleHeight +
@@ -106,7 +123,7 @@ public enum ToolbarLayoutMetrics {
             gridHeight(itemCount: colorControls, columns: compactColumnCount) +
             CGFloat(menuControlCount) * menuControlHeight +
             dividerHeight +
-            gridHeight(itemCount: actionButtonCount, columns: compactColumnCount) +
+            gridHeight(itemCount: actionControls, columns: compactColumnCount) +
             CGFloat(childCount - 1) * gridSpacing +
             contentBottomPadding
     }
@@ -119,7 +136,8 @@ public enum ToolbarLayoutMetrics {
 
     private static func estimatedHorizontalToolbarWidth(
         for snapshot: PreferencesSnapshot,
-        statusControlCount: Int
+        statusControlCount: Int,
+        selectedActionButtonCount: Int
     ) -> CGFloat {
         let outerPadding: CGFloat = 12
         let dragHandleWidth: CGFloat = 16
@@ -128,7 +146,8 @@ public enum ToolbarLayoutMetrics {
         let fixedButtons = 3
         let toolButtons = snapshot.visibleTools.count
         let colorButtons = min(snapshot.paletteColors.count, 4) + 2
-        let buttonCount = fixedButtons + statusControlCount + toolButtons + colorButtons + actionButtonCount
+        let actionControls = actionButtonCount + max(selectedActionButtonCount, 0)
+        let buttonCount = fixedButtons + statusControlCount + toolButtons + colorButtons + actionControls
         let elementCount = 1 + buttonCount + 3 + menuControlCount
 
         return outerPadding +
