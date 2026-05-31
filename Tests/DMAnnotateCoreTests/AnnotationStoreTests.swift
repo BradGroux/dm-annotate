@@ -602,6 +602,38 @@ import Testing
     #expect(withStatus.width == ToolbarLayoutMetrics.verticalPanelWidth)
 }
 
+@Test func toolbarLayoutMetricsAccountForSelectedAnnotationAction() {
+    let visibleFrame = CGRect(x: 0, y: 0, width: 1_400, height: 2_000)
+    let verticalSnapshot = PreferencesSnapshot(toolbarOrientation: .vertical)
+    let horizontalSnapshot = PreferencesSnapshot(toolbarOrientation: .horizontal)
+
+    let verticalWithoutSelection = ToolbarLayoutMetrics.preferredSize(
+        for: verticalSnapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let verticalWithSelection = ToolbarLayoutMetrics.preferredSize(
+        for: verticalSnapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0,
+        selectedActionButtonCount: 1
+    )
+    let horizontalWithoutSelection = ToolbarLayoutMetrics.preferredSize(
+        for: horizontalSnapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let horizontalWithSelection = ToolbarLayoutMetrics.preferredSize(
+        for: horizontalSnapshot,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0,
+        selectedActionButtonCount: 1
+    )
+
+    #expect(verticalWithSelection.height == verticalWithoutSelection.height + ToolbarLayoutMetrics.buttonSize + ToolbarLayoutMetrics.gridSpacing)
+    #expect(horizontalWithSelection.width == horizontalWithoutSelection.width + ToolbarLayoutMetrics.buttonSize + ToolbarLayoutMetrics.gridSpacing)
+}
+
 @Test func compactToolbarLayoutIsSmallerThanNormalToolbar() {
     let visibleFrame = CGRect(x: 0, y: 0, width: 1_400, height: 1_200)
     let normal = ToolbarLayoutMetrics.preferredSize(
@@ -617,4 +649,10 @@ import Testing
 
     #expect(compact.width == normal.width)
     #expect(compact.height < normal.height)
+}
+
+@Test func visibleToolNormalizationKeepsRecoveryControlsAvailable() {
+    #expect(PreferencesSnapshot.normalizedVisibleTools([]) == [.cursor, .pen])
+    #expect(PreferencesSnapshot.normalizedVisibleTools([.whiteboard]) == [.cursor, .whiteboard, .blackboard])
+    #expect(PreferencesSnapshot.normalizedVisibleTools([.blackboard]) == [.cursor, .whiteboard, .blackboard])
 }

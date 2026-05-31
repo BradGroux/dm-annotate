@@ -30,6 +30,14 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
                 self?.preferencesDidChange(snapshot)
             }
             .store(in: &cancellables)
+
+        store.$selectedAnnotationID
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.resizeToFit()
+            }
+            .store(in: &cancellables)
     }
 
     func show() {
@@ -219,12 +227,17 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         return ToolbarLayoutMetrics.preferredSize(
             for: snapshot,
             visibleFrame: visibleFrame,
-            statusControlCount: statusControlCount()
+            statusControlCount: statusControlCount(),
+            selectedActionButtonCount: selectedActionButtonCount()
         )
     }
 
     private func statusControlCount() -> Int {
         PermissionSummary.current().needsAttention ? 1 : 0
+    }
+
+    private func selectedActionButtonCount() -> Int {
+        store.selectedAnnotationID == nil ? 0 : 1
     }
 
     private func clampedFrame(_ frame: CGRect, using snapshot: PreferencesSnapshot) -> CGRect {

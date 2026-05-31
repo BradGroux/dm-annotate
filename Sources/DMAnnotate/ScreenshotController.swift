@@ -38,6 +38,15 @@ final class ScreenshotController {
             return
         }
 
+        if let regionSelectionWindow, regionSelectionWindow.isVisible {
+            regionSelectionWindow.makeKeyAndOrderFront(nil)
+            regionSelectionWindow.makeFirstResponder(regionSelectionWindow.contentView)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        regionSelectionWindow?.close()
+
         let window = RegionSelectionWindow(screen: screen) { [weak self] region in
             self?.regionSelectionWindow = nil
             guard let region, !region.isEmpty else { return }

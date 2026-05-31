@@ -31,6 +31,7 @@ final class PreferencesController: ObservableObject {
         let previous = snapshot
         var next = snapshot
         mutate(&next)
+        next = Self.migrated(next)
         snapshot = next
         save()
         applySideEffects(previous: previous, next: next)
@@ -94,6 +95,7 @@ final class PreferencesController: ObservableObject {
 
         migrated.paletteColors = PreferencesSnapshot.normalizedPaletteColors(migrated.paletteColors)
         migrated.quickColors = Array(migrated.paletteColors.prefix(4))
+        migrated.visibleTools = PreferencesSnapshot.normalizedVisibleTools(migrated.visibleTools)
 
         return migrated
     }
