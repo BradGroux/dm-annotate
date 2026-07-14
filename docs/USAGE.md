@@ -196,6 +196,12 @@ Settings include:
 - Community links for SSTB.ai, the Start Small, Think Big podcast playlist, and Discord.
 - Help, version, permission, and diagnostics links.
 
+Settings controls expose their names and current state to VoiceOver. Sidebar sections announce selection, and repeated actions such as clearing shortcuts or deleting toolbar presets include the affected item name.
+
+To edit a shortcut without a pointer, use Full Keyboard Access to focus its recorder, press `Space` or `Return`, then press the new shortcut. Press `Delete` while recording to clear it or `Escape` to cancel. VoiceOver announces the action name, assigned shortcut, recording instructions, and any duplicate or rejected state.
+
+See [Settings Accessibility Validation](ACCESSIBILITY-TESTING.md) for the packaged AX smoke coverage and manual VoiceOver/Accessibility Inspector matrix.
+
 ## Annotation Sessions
 
 Use **File > Save Annotation Session...** to write the current annotations to a local `.dmannotate-session` file. Use **File > Load Annotation Session...** to restore one later.

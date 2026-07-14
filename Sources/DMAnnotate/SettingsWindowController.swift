@@ -51,6 +51,10 @@ final class SettingsWindowController {
         window?.isVisible == true
     }
 
+    var accessibilityVerificationWindow: NSWindow? {
+        window
+    }
+
     private func makeWindow(initialSection: SettingsSection) {
         let hostingView = NSHostingView(rootView: settingsView(initialSection: initialSection))
         let window = NSWindow(

@@ -11,7 +11,7 @@ struct SettingsGeneralSectionView: View {
         VStack(alignment: .leading, spacing: 24) {
             SettingsGroup("Appearance") {
                 SettingsRow("Theme") {
-                    Picker("", selection: binding(\.theme)) {
+                    Picker("Theme", selection: binding(\.theme)) {
                         ForEach(AppTheme.allCases) { theme in
                             Text(theme.rawValue.capitalized).tag(theme)
                         }
@@ -23,7 +23,7 @@ struct SettingsGeneralSectionView: View {
 
             SettingsGroup("Toolbar") {
                 SettingsRow("Orientation") {
-                    Picker("", selection: binding(\.toolbarOrientation)) {
+                    Picker("Toolbar orientation", selection: binding(\.toolbarOrientation)) {
                         ForEach(ToolbarOrientation.allCases) { orientation in
                             Text(orientation.rawValue.capitalized).tag(orientation)
                         }
@@ -52,6 +52,7 @@ struct SettingsGeneralSectionView: View {
                             } label: {
                                 Label("Save", systemImage: "tray.and.arrow.down")
                             }
+                            .accessibilityLabel("Save toolbar preset")
                         }
 
                         if preferences.snapshot.toolbarPresets.isEmpty {
@@ -70,12 +71,13 @@ struct SettingsGeneralSectionView: View {
                                         } label: {
                                             Label("Apply", systemImage: "arrow.down.left.and.arrow.up.right")
                                         }
+                                        .accessibilityLabel("Apply \(preset.name) toolbar preset")
                                         Button {
                                             preferences.update { $0.deleteToolbarPreset(id: preset.id) }
                                         } label: {
                                             Image(systemName: "trash")
                                         }
-                                        .accessibilityLabel("Delete toolbar preset")
+                                        .accessibilityLabel("Delete \(preset.name) toolbar preset")
                                     }
                                     .controlSize(.small)
                                 }
@@ -87,7 +89,7 @@ struct SettingsGeneralSectionView: View {
 
             SettingsGroup("Screenshots") {
                 SettingsRow("Output") {
-                    Picker("", selection: binding(\.screenshotOutput)) {
+                    Picker("Screenshot output", selection: binding(\.screenshotOutput)) {
                         ForEach(ScreenshotOutput.allCases) { output in
                             Text(output == .file ? "Save PNG file" : "Copy to clipboard").tag(output)
                         }
@@ -109,13 +111,14 @@ struct SettingsGeneralSectionView: View {
                         Button("Choose...") {
                             chooseScreenshotFolder()
                         }
+                        .accessibilityLabel("Choose screenshot folder")
                     }
                 }
             }
 
             SettingsGroup("Whiteboard") {
                 SettingsRow("Background") {
-                    Picker("", selection: binding(\.whiteboardBackground)) {
+                    Picker("Whiteboard background", selection: binding(\.whiteboardBackground)) {
                         ForEach(WhiteboardBackground.allCases) { background in
                             Text(label(for: background)).tag(background)
                         }

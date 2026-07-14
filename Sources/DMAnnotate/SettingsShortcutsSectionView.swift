@@ -10,7 +10,7 @@ struct SettingsShortcutsSectionView: View {
         let duplicates = preferences.duplicateShortcuts()
 
         SettingsGroup("Keyboard Shortcuts") {
-            Text("Click a field, press a new key combination, or clear it to disable the action.")
+            Text("Select a shortcut field, activate it, then press a new key combination. Clear a shortcut to disable its action.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -25,6 +25,7 @@ struct SettingsShortcutsSectionView: View {
 
                         ShortcutRecorderField(
                             shortcut: shortcutBinding(action),
+                            action: action,
                             isDuplicate: duplicates.contains(normalized)
                         )
                         .frame(height: 30)
@@ -33,6 +34,7 @@ struct SettingsShortcutsSectionView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.yellow)
                                 .help("Duplicate shortcut")
+                                .accessibilityHidden(true)
                         }
 
                         Button {
@@ -43,8 +45,12 @@ struct SettingsShortcutsSectionView: View {
                             Image(systemName: "xmark.circle")
                         }
                         .buttonStyle(.borderless)
-                        .help("Clear shortcut")
+                        .disabled(normalized.isEmpty)
+                        .help("Clear \(action.displayName) shortcut")
+                        .accessibilityLabel("Clear \(action.displayName) shortcut")
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("\(action.displayName) shortcut setting")
                 }
             }
 
