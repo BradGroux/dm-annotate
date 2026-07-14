@@ -34,6 +34,9 @@ jobs:
           bash -n scripts/package-release.sh
           bash -n scripts/verify-release-zip.sh
           bash -n scripts/smoke-ui.sh
+          bash -n scripts/validate-release-config.sh
+          bash -n scripts/test-release-config.sh
+          scripts/test-release-config.sh
           zip_path="$(scripts/verify-release-zip.sh)"
           shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
           test -s "${zip_path}.sha256"

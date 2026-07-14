@@ -6,6 +6,8 @@ The app runs from the macOS menu bar and provides a floating toolbar for drawing
 
 > Status: early public release. Core annotation, screenshot, shortcut, settings, session, and permission flows are implemented. GitHub and Homebrew release artifacts are Developer ID signed, notarized, and stapled.
 
+Public release automation fails closed unless signing, notarization, Gatekeeper validation, and default-branch provenance checks pass. Manual ad-hoc previews are kept separate from stable releases.
+
 ## Demo
 
 <p align="center">

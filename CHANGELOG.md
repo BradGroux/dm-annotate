@@ -6,6 +6,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Security
+
+- Fail closed for public release tags unless signing, notarization, Gatekeeper validation, and default-branch provenance checks pass; keep ad-hoc previews behind an explicit draft-prerelease workflow.
+
 ## 0.1.12 - 2026-05-31
 
 ### Added
