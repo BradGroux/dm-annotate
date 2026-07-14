@@ -37,3 +37,11 @@ The automated semantic-color test resolves and measures each state below using t
 | High-contrast Dark Aqua | Active and inactive | Corresponding semantic selection | Each resolved pair is at least 4.5:1 |
 
 Focused state tests separately verify that disabled unavailable toolbar actions suppress selection, Increase Contrast exposes the shared outline, and selected toolbar buttons provide immediate, non-animated pressed feedback. The shared style continues to apply the selected accessibility trait whenever its selected treatment is visible.
+
+## Find Toolbar Motion
+
+Every current Find Toolbar entry point is keyboard-capable or high frequency: the global shortcut, application and status menus, and command palette. They all use one static presentation policy. The toolbar is ordered front without positional movement, whether Reduce Motion is on or off. The system Reduce Motion value is read for every invocation rather than cached, so changing the preference cannot leave stale motion behavior.
+
+Find Toolbar posts the concise VoiceOver announcement “Toolbar is visible.” The announcement is limited to once per second using monotonic process uptime, so rapid invocation remains responsive without flooding assistive feedback. There are no animation completion handlers, frame-reset timers, or delayed tasks to race with later requests.
+
+Automated tests cover normal, Reduce Motion, and rapid repeated decisions. The packaged UI smoke invokes Find Toolbar twice and asserts that the panel frame stays unchanged and its AppKit animation behavior is disabled. A manual release check should still confirm VoiceOver announcement delivery and frontmost visibility across multiple displays with Reduce Motion both on and off.
