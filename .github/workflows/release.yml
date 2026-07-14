@@ -4,28 +4,21 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  build-release:
     name: Build release
     runs-on: macos-15
-    env:
-      APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
-      APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-      APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-      APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
-      APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
-      APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
-      APPLE_NOTARIZATION_PRIVATE_KEY: ${{ secrets.APPLE_NOTARIZATION_PRIVATE_KEY }}
-      APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
-      APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Read version
         id: version
@@ -34,7 +27,7 @@ jobs:
           build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Packaging/Info.plist)"
           tag="${GITHUB_REF_NAME#v}"
 
-          if [[ "${version}" != "${tag}" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${version}" != "${tag}" ]]; then
             echo "Info.plist version ${version} does not match tag ${GITHUB_REF_NAME}." >&2
             exit 1
           fi
@@ -61,6 +54,16 @@ jobs:
 
       - name: Validate signing configuration
         id: signing
+        env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+          APPLE_NOTARIZATION_PRIVATE_KEY: ${{ secrets.APPLE_NOTARIZATION_PRIVATE_KEY }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+          APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
         run: |
           cert_names=(
             APPLE_DEVELOPER_ID_CERTIFICATE_BASE64
@@ -157,6 +160,9 @@ jobs:
           if [[ "${cert_present}" == "true" && "${notary_present}" == "true" ]]; then
             echo "notarize=true" >> "${GITHUB_OUTPUT}"
             echo "notary_method=${notary_method}" >> "${GITHUB_OUTPUT}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "Manual release dry runs require complete Developer ID signing and notarization secrets." >&2
+            exit 1
           else
             echo "notarize=false" >> "${GITHUB_OUTPUT}"
             echo "notary_method=none" >> "${GITHUB_OUTPUT}"
@@ -165,6 +171,9 @@ jobs:
 
       - name: Import Developer ID certificate
         if: steps.signing.outputs.notarize == 'true'
+        env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
         run: |
           certificate_path="${RUNNER_TEMP}/developer-id.p12"
           keychain_path="${RUNNER_TEMP}/app-signing.keychain-db"
@@ -183,6 +192,9 @@ jobs:
       - name: Write App Store Connect API key
         id: notary_key
         if: steps.signing.outputs.notary_method == 'api-key'
+        env:
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_PRIVATE_KEY: ${{ secrets.APPLE_NOTARIZATION_PRIVATE_KEY }}
         run: |
           key_path="${RUNNER_TEMP}/AuthKey_${APPLE_NOTARIZATION_KEY_ID}.p8"
           umask 077
@@ -224,6 +236,14 @@ jobs:
             echo "signing_status=${signing_status}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Remove signing credentials
+        if: always() && steps.signing.outputs.notarize == 'true'
+        run: |
+          security delete-keychain "${RUNNER_TEMP}/app-signing.keychain-db" 2>/dev/null || true
+          rm -f \
+            "${RUNNER_TEMP}/developer-id.p12" \
+            "${RUNNER_TEMP}"/AuthKey_*.p8
+
       - name: Write release notes
         run: |
           cat > .build/release-notes.md <<'EOF'
@@ -254,13 +274,52 @@ jobs:
           ${{ steps.package.outputs.signing_status }}
           EOF
 
+      - name: Stage release artifacts
+        run: |
+          artifact_dir=".build/release-artifacts"
+          mkdir -p "${artifact_dir}"
+          cp "${{ steps.package.outputs.zip_path }}" "${artifact_dir}/"
+          cp "${{ steps.package.outputs.sha_path }}" "${artifact_dir}/"
+          cp .build/release-notes.md "${artifact_dir}/"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ github.ref_name }}
+          path: .build/release-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-release:
+    name: Publish release
+    needs: build-release
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-${{ github.ref_name }}
+          path: release-artifacts
+
+      - name: Validate release artifacts
+        run: |
+          version="${{ needs.build-release.outputs.version }}"
+          test -s "release-artifacts/dm-annotate-${version}-macos.zip"
+          test -s "release-artifacts/dm-annotate-${version}-macos.zip.sha256"
+          test -s release-artifacts/release-notes.md
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="${{ needs.build-release.outputs.version }}"
           gh release create "${GITHUB_REF_NAME}" \
-            "${{ steps.package.outputs.zip_path }}" \
-            "${{ steps.package.outputs.sha_path }}" \
+            "release-artifacts/dm-annotate-${version}-macos.zip" \
+            "release-artifacts/dm-annotate-${version}-macos.zip.sha256" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "dm-annotate ${{ steps.version.outputs.version }}" \
-            --notes-file .build/release-notes.md
+            --title "dm-annotate ${version}" \
+            --notes-file release-artifacts/release-notes.md
