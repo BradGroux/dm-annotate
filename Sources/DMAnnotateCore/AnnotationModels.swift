@@ -782,6 +782,7 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
     public var annotationsLocked: Bool
     public var whiteboardModeEnabled: Bool
     public var whiteboardBackground: WhiteboardBackground
+    public var displayGeometry: [AnnotationDisplayGeometry]?
 
     public init(
         version: Int = currentVersion,
@@ -794,7 +795,8 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
         isVisible: Bool,
         annotationsLocked: Bool,
         whiteboardModeEnabled: Bool,
-        whiteboardBackground: WhiteboardBackground
+        whiteboardBackground: WhiteboardBackground,
+        displayGeometry: [AnnotationDisplayGeometry]? = nil
     ) {
         self.version = version
         self.createdAt = createdAt
@@ -807,6 +809,7 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
         self.annotationsLocked = annotationsLocked
         self.whiteboardModeEnabled = whiteboardModeEnabled
         self.whiteboardBackground = whiteboardBackground
+        self.displayGeometry = displayGeometry
     }
 
     public func validated() throws -> AnnotationSessionDocument {
@@ -840,18 +843,19 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
     }
 
     public func retargetingMissingDisplays(
-        availableDisplayIDs: Set<UInt32>,
-        fallbackDisplayID: UInt32
+        to destinationDisplays: [AnnotationDisplayGeometry],
+        fallbackDisplayID: UInt32?
     ) -> AnnotationSessionDocument {
-        guard !availableDisplayIDs.isEmpty else { return self }
+        guard !destinationDisplays.isEmpty else { return self }
 
         var copy = self
-        copy.annotations = annotations.map { annotation in
-            guard !availableDisplayIDs.contains(annotation.displayID) else { return annotation }
-            var retargeted = annotation
-            retargeted.displayID = fallbackDisplayID
-            return retargeted
-        }
+        copy.annotations = AnnotationDisplayRetargeter.retarget(
+            annotations,
+            sourceDisplays: displayGeometry ?? [],
+            destinationDisplays: destinationDisplays,
+            fallbackDisplayID: fallbackDisplayID
+        )
+        copy.displayGeometry = destinationDisplays
         return copy
     }
 

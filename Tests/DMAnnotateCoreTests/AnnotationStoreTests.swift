@@ -865,7 +865,15 @@ private func heavyPerimeterPoints() -> [CGPoint] {
     store.add(item)
     let data = try store.sessionDocument(createdAt: Date(timeIntervalSince1970: 1_777_777_777)).encodedData()
     let decoded = try AnnotationSessionDocument.decode(from: data)
-        .retargetingMissingDisplays(availableDisplayIDs: [7], fallbackDisplayID: 7)
+        .retargetingMissingDisplays(
+            to: [AnnotationDisplayGeometry(
+                displayID: 7,
+                globalBounds: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+                globalUsableBounds: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+                scale: 2
+            )],
+            fallbackDisplayID: 7
+        )
     let restored = AnnotationStore()
 
     restored.loadSession(decoded)

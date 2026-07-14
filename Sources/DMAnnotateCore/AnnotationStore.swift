@@ -378,7 +378,10 @@ public final class AnnotationStore: ObservableObject {
         return true
     }
 
-    public func sessionDocument(createdAt: Date = Date()) -> AnnotationSessionDocument {
+    public func sessionDocument(
+        createdAt: Date = Date(),
+        displayGeometry: [AnnotationDisplayGeometry]? = nil
+    ) -> AnnotationSessionDocument {
         AnnotationSessionDocument(
             createdAt: createdAt,
             annotations: annotations,
@@ -389,16 +392,24 @@ public final class AnnotationStore: ObservableObject {
             isVisible: isVisible,
             annotationsLocked: annotationsLocked,
             whiteboardModeEnabled: whiteboardModeEnabled,
-            whiteboardBackground: whiteboardBackground
+            whiteboardBackground: whiteboardBackground,
+            displayGeometry: displayGeometry
         )
     }
 
-    public func sessionData(createdAt: Date = Date()) throws -> Data {
-        try sessionDocument(createdAt: createdAt).encodedData()
+    public func sessionData(
+        createdAt: Date = Date(),
+        displayGeometry: [AnnotationDisplayGeometry]? = nil
+    ) throws -> Data {
+        try sessionDocument(createdAt: createdAt, displayGeometry: displayGeometry).encodedData()
     }
 
-    public func exportSession(to url: URL, createdAt: Date = Date()) throws {
-        let data = try sessionData(createdAt: createdAt)
+    public func exportSession(
+        to url: URL,
+        createdAt: Date = Date(),
+        displayGeometry: [AnnotationDisplayGeometry]? = nil
+    ) throws {
+        let data = try sessionData(createdAt: createdAt, displayGeometry: displayGeometry)
         try data.write(to: url, options: .atomic)
     }
 
@@ -419,6 +430,33 @@ public final class AnnotationStore: ObservableObject {
         undoStack.removeAll()
         redoStack.removeAll()
         updateHistoryFlags()
+    }
+
+    /// Retargets annotations after the rendered display set changes.
+    ///
+    /// System-driven coordinate changes are not user-edit history. Existing history is
+    /// cleared when a retarget occurs so undo cannot restore a disconnected display ID.
+    @discardableResult
+    public func retargetAnnotations(
+        from sourceDisplays: [AnnotationDisplayGeometry],
+        to destinationDisplays: [AnnotationDisplayGeometry],
+        fallbackDisplayID: UInt32?
+    ) -> Bool {
+        let retargeted = AnnotationDisplayRetargeter.retarget(
+            annotations,
+            sourceDisplays: sourceDisplays,
+            destinationDisplays: destinationDisplays,
+            fallbackDisplayID: fallbackDisplayID
+        )
+        guard retargeted != annotations else { return false }
+
+        annotations = retargeted
+        annotationWork = Self.makeWorkIndex(for: retargeted)
+        undoStack.removeAll()
+        redoStack.removeAll()
+        updateHistoryFlags()
+        annotationInvalidationSubject.send(.fullRedraw)
+        return true
     }
 
     private func setStrokeWidth(relativeOffset: Int) {
