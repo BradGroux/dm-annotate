@@ -1,7 +1,27 @@
 import CoreGraphics
+import Combine
 import Foundation
 import Testing
 @testable import DMAnnotateCore
+
+private func heavyPerimeterPoints() -> [CGPoint] {
+    let count = AnnotationSessionDocument.maximumPointsPerAnnotation
+    let sideLength = count / 4
+    return (0..<count).map { index in
+        let side = index / sideLength
+        let offset = index % sideLength
+        switch side {
+        case 0:
+            return CGPoint(x: CGFloat(offset), y: 0)
+        case 1:
+            return CGPoint(x: CGFloat(sideLength), y: CGFloat(offset))
+        case 2:
+            return CGPoint(x: CGFloat(sideLength - offset), y: CGFloat(sideLength))
+        default:
+            return CGPoint(x: 0, y: CGFloat(sideLength - offset))
+        }
+    }
+}
 
 @MainActor
 @Test func addUndoRedoClearRoundTrip() {
@@ -115,6 +135,258 @@ import Testing
 
     store.undo()
     #expect(store.annotations == [touched, otherDisplay, untouched])
+}
+
+@MainActor
+@Test func eraseRejectsDistantHeavyStrokesBeforeScanningSegments() {
+    let pointsPerStroke = AnnotationSessionDocument.maximumPointsPerAnnotation
+    let annotations = (0..<100).map { annotationIndex in
+        AnnotationItem(
+            displayID: 1,
+            kind: .pen,
+            points: (0..<pointsPerStroke).map { pointIndex in
+                CGPoint(x: CGFloat(pointIndex), y: CGFloat(annotationIndex * 10))
+            },
+            color: .red,
+            lineWidth: 3
+        )
+    }
+    let store = AnnotationStore(annotations: annotations)
+
+    let work = store.erase(
+        at: CGPoint(x: -10_000, y: -10_000),
+        radius: 14,
+        displayID: 1
+    )
+
+    #expect(work.annotationsExamined == 100)
+    #expect(work.boundsCandidates == 0)
+    #expect(work.segmentsExamined == 0)
+    #expect(work.annotationsRemoved == 0)
+    #expect(store.annotations.count == 100)
+}
+
+@MainActor
+@Test func eraseRejectsInsideBoundsHeavyStrokesAtChunkLevel() {
+    let perimeter = heavyPerimeterPoints()
+    let annotations = (0..<100).map { _ in
+        AnnotationItem(displayID: 1, kind: .pen, points: perimeter, color: .red, lineWidth: 3)
+    }
+    let store = AnnotationStore(annotations: annotations)
+
+    let work = store.eraseWork(at: CGPoint(x: 2_500, y: 2_500), radius: 8, displayID: 1)
+
+    #expect(work.boundsCandidates == 100)
+    #expect(work.chunksExamined > 30_000)
+    #expect(work.segmentsExamined == 0)
+    #expect(work.annotationsRemoved == 0)
+}
+
+@MainActor
+@Test func eraseFindsHitsAcrossManyInsideBoundsCandidates() {
+    let perimeter = heavyPerimeterPoints()
+    let annotations = (0..<100).map { _ in
+        AnnotationItem(displayID: 1, kind: .pen, points: perimeter, color: .red, lineWidth: 3)
+    }
+    let store = AnnotationStore(annotations: annotations)
+
+    let work = store.eraseWork(at: CGPoint(x: 2_500, y: 0), radius: 8, displayID: 1)
+
+    #expect(work.boundsCandidates == 100)
+    #expect(work.chunksExamined > 3_000)
+    #expect(work.segmentsExamined > 0)
+    #expect(work.annotationsRemoved == 100)
+}
+
+@MainActor
+@Test func eraseIncludesExactPositiveChunkEdges() {
+    let annotation = AnnotationItem(
+        displayID: 1,
+        kind: .line,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 64, y: 0)],
+        color: .red,
+        lineWidth: 3
+    )
+    let store = AnnotationStore(annotations: [annotation])
+
+    let positiveX = store.eraseWork(at: CGPoint(x: 72, y: 0), radius: 8, displayID: 1)
+    let positiveY = store.eraseWork(at: CGPoint(x: 32, y: 8), radius: 8, displayID: 1)
+
+    #expect(positiveX.annotationsRemoved == 1)
+    #expect(positiveX.segmentsExamined == 1)
+    #expect(positiveY.annotationsRemoved == 1)
+    #expect(positiveY.segmentsExamined == 1)
+}
+
+@MainActor
+@Test func eraseReportsOnlyCandidateStrokeSegmentsAndPreservesUndo() {
+    let missed = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 1_000, y: 1_000), CGPoint(x: 2_000, y: 2_000)],
+        color: .blue,
+        lineWidth: 3
+    )
+    let touched = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 50, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 3
+    )
+    let store = AnnotationStore(annotations: [missed, touched])
+
+    let work = store.erase(at: CGPoint(x: 75, y: 2), radius: 8, displayID: 1)
+
+    #expect(work.annotationsExamined == 2)
+    #expect(work.boundsCandidates == 1)
+    #expect(work.segmentsExamined == 2)
+    #expect(work.annotationsRemoved == 1)
+    #expect(store.annotations == [missed])
+
+    store.undo()
+    #expect(store.annotations == [missed, touched])
+}
+
+@MainActor
+@Test func renderBoundsQueryTracksAnnotationUpdatesAndUndo() {
+    let original = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 10, y: 10), CGPoint(x: 20, y: 20)],
+        color: .red,
+        lineWidth: 3
+    )
+    let store = AnnotationStore(annotations: [original])
+    var moved = original
+    moved.points = [CGPoint(x: 1_000, y: 1_000), CGPoint(x: 1_020, y: 1_020)]
+
+    #expect(store.annotations(intersecting: CGRect(x: 0, y: 0, width: 100, height: 100), displayID: 1) == [original])
+    #expect(store.update(moved))
+    store.recordMove(from: original, to: moved)
+    #expect(store.annotations(intersecting: CGRect(x: 0, y: 0, width: 100, height: 100), displayID: 1).isEmpty)
+    #expect(store.annotations(intersecting: CGRect(x: 900, y: 900, width: 200, height: 200), displayID: 1) == [moved])
+
+    store.undo()
+    #expect(store.annotations(intersecting: CGRect(x: 0, y: 0, width: 100, height: 100), displayID: 1) == [original])
+}
+
+@MainActor
+@Test func renderBoundsQueryIncludesFullHighlighterWidth() {
+    let highlighter = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .yellow,
+        lineWidth: 64
+    )
+    let store = AnnotationStore(annotations: [highlighter])
+
+    let edgeOfRenderedStroke = CGRect(x: 50, y: 90, width: 1, height: 1)
+    #expect(store.annotations(intersecting: edgeOfRenderedStroke, displayID: 1) == [highlighter])
+}
+
+@MainActor
+@Test func renderBoundsQueryIncludesArrowheadAndNeverCullsText() {
+    let arrow = AnnotationItem(
+        displayID: 1,
+        kind: .arrow,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 10
+    )
+    let text = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 500, y: 500)],
+        color: .blue,
+        lineWidth: 3,
+        text: "Wide glyphs: WWW"
+    )
+    let store = AnnotationStore(annotations: [arrow, text])
+
+    let arrowheadEdge = CGRect(x: 63, y: 16, width: 2, height: 2)
+    #expect(store.annotations(intersecting: arrowheadEdge, displayID: 1) == [arrow, text])
+    #expect(store.annotations(intersecting: CGRect(x: -10_000, y: -10_000, width: 1, height: 1), displayID: 1) == [text])
+}
+
+@MainActor
+@Test func storePublishesTargetedMoveAndEraseInvalidations() {
+    let original = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 3
+    )
+    let store = AnnotationStore(annotations: [original])
+    var invalidations: [AnnotationInvalidation] = []
+    let cancellable = store.annotationInvalidations.sink { invalidations.append($0) }
+    var moved = original
+    moved.points = [CGPoint(x: 1_000, y: 1_000), CGPoint(x: 1_100, y: 1_000)]
+
+    #expect(store.update(moved))
+    store.recordMove(from: original, to: moved)
+    _ = store.erase(at: CGPoint(x: 1_050, y: 1_000), radius: 8, displayID: 1)
+
+    #expect(invalidations.count == 2)
+    #expect(invalidations.allSatisfy { !$0.requiresFullRedraw })
+    #expect(invalidations.allSatisfy { $0.annotationIDs == Set([original.id]) })
+    #expect(invalidations[0].regions.count == 2)
+    #expect(invalidations[1].regions.count == 1)
+    withExtendedLifetime(cancellable) {}
+}
+
+@MainActor
+@Test func textMutationUsesSafeFullInvalidationUntilLayoutBoundsAreShared() {
+    let text = AnnotationItem(
+        displayID: 1,
+        kind: .text,
+        points: [CGPoint(x: 10, y: 10)],
+        color: .red,
+        lineWidth: 3,
+        text: "WWW"
+    )
+    let store = AnnotationStore(annotations: [text])
+    var invalidation: AnnotationInvalidation?
+    let cancellable = store.annotationInvalidations.sink { invalidation = $0 }
+    var moved = text
+    moved.points = [CGPoint(x: 500, y: 500)]
+
+    #expect(store.update(moved))
+
+    #expect(invalidation == .fullRedraw)
+    withExtendedLifetime(cancellable) {}
+}
+
+@Test func laserTrailBoundsSamplesAndPreservesNewestPoint() {
+    var trail = LaserTrail()
+    let start = Date(timeIntervalSince1970: 1_000)
+
+    for index in 0..<(LaserTrail.maximumPointCount * 3) {
+        trail.append(
+            CGPoint(x: CGFloat(index), y: 0),
+            at: start.addingTimeInterval(Double(index) / 240)
+        )
+    }
+
+    #expect(trail.points.count == LaserTrail.maximumPointCount)
+    #expect(trail.points.last?.point == CGPoint(x: CGFloat(LaserTrail.maximumPointCount * 3 - 1), y: 0))
+}
+
+@Test func laserTrailDropsExpiredAndNearDuplicateSamples() {
+    var trail = LaserTrail()
+    let start = Date(timeIntervalSince1970: 1_000)
+
+    trail.append(CGPoint(x: 0, y: 0), at: start)
+    trail.append(CGPoint(x: 0.25, y: 0.25), at: start.addingTimeInterval(0.001))
+    trail.append(CGPoint(x: 4, y: 0), at: start.addingTimeInterval(0.002))
+
+    #expect(trail.points.map(\.point) == [CGPoint(x: 0, y: 0), CGPoint(x: 4, y: 0)])
+    #expect(trail.boundingRect == CGRect(x: 0, y: 0, width: 4, height: 0))
+
+    trail.trim(at: start.addingTimeInterval(LaserTrail.lifetime + 0.01))
+    #expect(trail.points.isEmpty)
 }
 
 @Test func preferencesDefaultShortcutsMatchPRD() {
@@ -462,6 +734,45 @@ import Testing
     )) {
         _ = try tooManyPointsDocument.validated()
     }
+}
+
+@Test func annotationSessionDecodeRejectsDuplicateIDsBeforeStoreQueryIndexing() throws {
+    let duplicateID = UUID()
+    let first = AnnotationItem(
+        id: duplicateID,
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 3
+    )
+    let second = AnnotationItem(
+        id: duplicateID,
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 1_000, y: 1_000), CGPoint(x: 1_100, y: 1_000)],
+        color: .blue,
+        lineWidth: 3
+    )
+    let document = AnnotationSessionDocument(
+        annotations: [first, second],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let importedData = try encoder.encode(document)
+
+    expectSessionError(.duplicateAnnotationID(duplicateID)) {
+        _ = try AnnotationSessionDocument.decode(from: importedData)
+    }
+    #expect(AnnotationSessionError.duplicateAnnotationID(duplicateID).recoverySuggestion != nil)
 }
 
 @Test func annotationSessionEncodingRejectsTooManyPoints() {

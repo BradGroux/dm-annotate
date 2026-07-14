@@ -386,10 +386,14 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
 
     public var boundingRect: CGRect {
         switch kind {
-        case .pen, .highlighter:
+        case .pen:
             return points.boundingRect.expanded(by: max(lineWidth, 8))
-        case .line, .rectangle, .ellipse, .arrow:
+        case .highlighter:
+            return points.boundingRect.expanded(by: max(lineWidth * 3, 8))
+        case .line, .rectangle, .ellipse:
             return points.boundingRect.expanded(by: max(lineWidth, 8))
+        case .arrow:
+            return points.boundingRect.expanded(by: max(lineWidth * 4, 18) + lineWidth)
         case .text:
             guard let point = points.first else { return .zero }
             let lines = text.components(separatedBy: .newlines)
@@ -403,16 +407,35 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
     }
 
     public func touches(_ point: CGPoint, radius: CGFloat) -> Bool {
-        guard !points.isEmpty else { return false }
+        hitTest(at: point, radius: radius).isHit
+    }
+
+    public func hitTest(at point: CGPoint, radius: CGFloat) -> AnnotationHitTestResult {
+        guard !points.isEmpty else {
+            return AnnotationHitTestResult(isHit: false, segmentsExamined: 0)
+        }
 
         switch kind {
         case .pen, .highlighter:
-            return points.lineSegmentsContain(point, tolerance: max(radius, lineWidth))
+            return points.lineSegmentHitTest(point, tolerance: max(radius, lineWidth))
         case .line, .arrow:
-            return points.lineSegmentsContain(point, tolerance: max(radius, lineWidth))
+            return points.lineSegmentHitTest(point, tolerance: max(radius, lineWidth))
         case .rectangle, .ellipse, .text:
-            return boundingRect.expanded(by: radius).contains(point)
+            return AnnotationHitTestResult(
+                isHit: boundingRect.expanded(by: radius).contains(point),
+                segmentsExamined: 0
+            )
         }
+    }
+}
+
+public struct AnnotationHitTestResult: Equatable, Sendable {
+    public var isHit: Bool
+    public var segmentsExamined: Int
+
+    public init(isHit: Bool, segmentsExamined: Int) {
+        self.isHit = isHit
+        self.segmentsExamined = segmentsExamined
     }
 }
 
@@ -475,6 +498,13 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
                 count: nonEmptyAnnotations.count,
                 maximum: AnnotationStore.maximumAnnotationCount
             )
+        }
+
+        var annotationIDs = Set<AnnotationItem.ID>()
+        for annotation in nonEmptyAnnotations {
+            guard annotationIDs.insert(annotation.id).inserted else {
+                throw AnnotationSessionError.duplicateAnnotationID(annotation.id)
+            }
         }
 
         var copy = self
@@ -576,6 +606,7 @@ public enum AnnotationSessionError: LocalizedError, Equatable {
     case invalidCurrentColor
     case fileTooLarge(byteCount: UInt64, maximum: UInt64)
     case tooManyAnnotations(count: Int, maximum: Int)
+    case duplicateAnnotationID(UUID)
     case tooManyPoints(annotationID: UUID, count: Int, maximum: Int)
     case invalidGeometry(annotationID: UUID)
     case invalidColor(annotationID: UUID)
@@ -592,6 +623,8 @@ public enum AnnotationSessionError: LocalizedError, Equatable {
             "Annotation session is too large (\(byteCount) bytes). Maximum supported size is \(maximum) bytes."
         case .tooManyAnnotations(let count, let maximum):
             "Annotation session contains \(count) annotations. Maximum supported count is \(maximum)."
+        case .duplicateAnnotationID(let annotationID):
+            "Annotation session contains duplicate annotation identifier \(annotationID)."
         case .tooManyPoints(let annotationID, let count, let maximum):
             "Annotation \(annotationID) contains \(count) points. Maximum supported count is \(maximum)."
         case .invalidGeometry(let annotationID):
@@ -613,6 +646,8 @@ public enum AnnotationSessionError: LocalizedError, Equatable {
             "Remove some annotations or split the work across smaller session files, then save again."
         case .tooManyAnnotations:
             "Remove some annotations, then save again."
+        case .duplicateAnnotationID:
+            "Re-export the session from its source or remove the duplicate annotation entry, then try again."
         case .tooManyPoints:
             "Undo or clear the longest strokes and redraw them as shorter strokes, then save again."
         case .textTooLong:
@@ -641,19 +676,31 @@ public extension Array where Element == CGPoint {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY).standardized
     }
 
-    func lineSegmentsContain(_ point: CGPoint, tolerance: CGFloat) -> Bool {
+    func lineSegmentHitTest(
+        _ point: CGPoint,
+        tolerance: CGFloat,
+        segmentRange: Range<Int>? = nil
+    ) -> AnnotationHitTestResult {
         guard count > 1 else {
-            return first.map { hypot($0.x - point.x, $0.y - point.y) <= tolerance } ?? false
+            return AnnotationHitTestResult(
+                isHit: first.map { hypot($0.x - point.x, $0.y - point.y) <= tolerance } ?? false,
+                segmentsExamined: 0
+            )
         }
 
-        for index in 0..<(count - 1) {
+        let availableSegments = 0..<(count - 1)
+        let requestedSegments = segmentRange ?? availableSegments
+        let segments = requestedSegments.clamped(to: availableSegments)
+        var examined = 0
+        for index in segments {
+            examined += 1
             let distance = distanceFrom(point, toSegmentStart: self[index], end: self[index + 1])
             if distance <= tolerance {
-                return true
+                return AnnotationHitTestResult(isHit: true, segmentsExamined: examined)
             }
         }
 
-        return false
+        return AnnotationHitTestResult(isHit: false, segmentsExamined: examined)
     }
 
     private func distanceFrom(_ point: CGPoint, toSegmentStart start: CGPoint, end: CGPoint) -> CGFloat {
