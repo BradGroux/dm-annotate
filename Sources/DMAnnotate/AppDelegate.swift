@@ -239,7 +239,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try store.exportSession(to: url)
+            try store.exportSession(
+                to: url,
+                displayGeometry: NSScreen.screens.map(\.annotationDisplayGeometry)
+            )
         } catch {
             showError(AnnotationStore.sessionSaveFailureMessage(for: error))
         }
@@ -262,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             let data = try Data(contentsOf: url)
             let session = try AnnotationSessionDocument.decode(from: data)
                 .retargetingMissingDisplays(
-                    availableDisplayIDs: Set(NSScreen.screens.map(\.displayID)),
+                    to: NSScreen.screens.map(\.annotationDisplayGeometry),
                     fallbackDisplayID: NSScreen.main?.displayID ?? NSScreen.screens.first?.displayID ?? 0
                 )
             store.loadSession(session)

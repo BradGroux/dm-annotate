@@ -6,6 +6,7 @@ import DMAnnotateCore
 final class OverlayController {
     private let store: AnnotationStore
     private var windows: [OverlayWindow] = []
+    private var displayGeometry: [AnnotationDisplayGeometry] = []
     private var cancellables: Set<AnyCancellable> = []
 
     init(store: AnnotationStore) {
@@ -13,7 +14,7 @@ final class OverlayController {
     }
 
     func start() {
-        rebuildWindows()
+        rebuildWindows(for: NSScreen.screens)
 
         NotificationCenter.default.addObserver(
             self,
@@ -67,9 +68,10 @@ final class OverlayController {
         windows.forEach { $0.contentView?.needsDisplay = true }
     }
 
-    private func rebuildWindows() {
+    private func rebuildWindows(for screens: [NSScreen]) {
         windows.forEach { $0.close() }
-        windows = NSScreen.screens.map { screen in
+        displayGeometry = screens.map(\.annotationDisplayGeometry)
+        windows = screens.map { screen in
             let displayID = screen.displayID
             let window = OverlayWindow(frame: screen.frame)
             window.contentView = OverlayView(frame: CGRect(origin: .zero, size: screen.frame.size), store: store, displayID: displayID)
@@ -96,7 +98,14 @@ final class OverlayController {
     }
 
     @objc private func screenParametersChanged() {
-        rebuildWindows()
+        let screens = NSScreen.screens
+        let nextDisplayGeometry = screens.map(\.annotationDisplayGeometry)
+        store.retargetAnnotations(
+            from: displayGeometry,
+            to: nextDisplayGeometry,
+            fallbackDisplayID: NSScreen.main?.displayID ?? screens.first?.displayID
+        )
+        rebuildWindows(for: screens)
     }
 }
 
@@ -125,5 +134,14 @@ final class OverlayWindow: NSPanel {
 extension NSScreen {
     var displayID: UInt32 {
         deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 ?? 0
+    }
+
+    var annotationDisplayGeometry: AnnotationDisplayGeometry {
+        AnnotationDisplayGeometry(
+            displayID: displayID,
+            globalBounds: frame,
+            globalUsableBounds: visibleFrame,
+            scale: backingScaleFactor
+        )
     }
 }

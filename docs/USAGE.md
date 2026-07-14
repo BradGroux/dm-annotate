@@ -206,7 +206,7 @@ See [Settings Accessibility Validation](ACCESSIBILITY-TESTING.md) for the packag
 
 Use **File > Save Annotation Session...** to write the current annotations to a local `.dmannotate-session` file. Use **File > Load Annotation Session...** to restore one later.
 
-Session files contain annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. If a saved display is missing when loading, annotations are retargeted to the current main display. Session files stay local and are not synced by the app.
+Session files contain annotation geometry, display IDs, logical-point display geometry, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. If a saved display is missing when loading, annotations are moved into the usable area of the current main display while preserving their painted size. The same recovery runs when a display disconnects. Oversized annotations are centered so part of the annotation remains usable. If macOS temporarily reports no displays, annotations are held unchanged until a usable display is available. Retargeting clears undo and redo history so an undo cannot restore a disconnected display assignment. Session files stay local and are not synced by the app.
 
 Sessions support up to 10,000 annotations, 20,000 points per annotation, 8,000 characters per text annotation, and 10 MiB of encoded data. Long live strokes are progressively simplified before they reach the point limit while preserving endpoints and sharp turns. Saving validates the complete session before atomically replacing a file, so a failed save leaves an existing file unchanged and reports what to reduce or recreate before retrying.
 
