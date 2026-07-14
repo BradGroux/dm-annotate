@@ -278,6 +278,10 @@ struct ToolbarContentView: View {
         Menu {
             ForEach(AnnotationTool.allCases.filter { $0 != .cursor && preferences.snapshot.visibleTools.contains($0) }) { tool in
                 Button {
+                    guard ToolbarToolAvailability.isEnabled(tool, isSafeMode: runtimeState.isSafeMode) else {
+                        NSSound.beep()
+                        return
+                    }
                     store.setActiveTool(tool)
                 } label: {
                     Label(tool.displayName, systemImage: tool.systemImageName)
@@ -287,7 +291,13 @@ struct ToolbarContentView: View {
             toolbarIcon(activeToolIcon)
         }
         .buttonStyle(toolbarButtonStyle(active: store.activeTool != .cursor || store.whiteboardModeEnabled))
-        .toolbarHelp("Active tool: \(activeToolName)")
+        .disabled(!ToolbarToolAvailability.canSelectAnnotationTools(isSafeMode: runtimeState.isSafeMode))
+        .toolbarHelp(
+            ToolbarToolAvailability.annotationToolHelpText(
+                isSafeMode: runtimeState.isSafeMode,
+                availableHelp: "Active tool: \(activeToolName)"
+            )
+        )
         .accessibilityLabel("Active annotation tool")
     }
 

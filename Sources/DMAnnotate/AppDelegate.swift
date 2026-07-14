@@ -374,6 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         }
 
         verifyToolbarLayouts(failures: &failures)
+        verifySafeModeToolbarAvailability(failures: &failures)
         verifyCommandPaletteCommands(commands, failures: &failures)
         verifyToolbarPresetPreferences(failures: &failures)
         verifyScreenshotFeedback(failures: &failures)
@@ -382,6 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("dm-annotate UI smoke OK")
             print("- core windows visible")
             print("- toolbar layout states rendered")
+            print("- Safe Mode full and compact toolbar states rendered")
             print("- command palette actions generated")
             print("- toolbar preset preferences round-tripped")
             print("- screenshot feedback rendered without animation")
@@ -421,6 +423,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         }, failures: &failures)
 
         verifyToolbarLayout("compact", configure: { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = true
+        }, failures: &failures)
+
+        preferences.update { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = false
+        }
+        toolbarWindowController.show()
+        toolbarWindowController.resizeToFit()
+        settleWindows()
+    }
+
+    private func verifySafeModeToolbarAvailability(failures: inout [String]) {
+        guard runtimeState.isSafeMode else {
+            failures.append("Toolbar Safe Mode smoke did not launch in Safe Mode.")
+            return
+        }
+
+        if !ToolbarToolAvailability.isEnabled(.cursor, isSafeMode: runtimeState.isSafeMode) {
+            failures.append("Toolbar Safe Mode smoke disabled the cursor recovery action.")
+        }
+
+        if ToolbarToolAvailability.canSelectAnnotationTools(isSafeMode: runtimeState.isSafeMode) {
+            failures.append("Toolbar Safe Mode smoke left annotation tool selection enabled.")
+        }
+
+        if store.activeTool != .cursor || store.whiteboardModeEnabled {
+            failures.append("Toolbar Safe Mode smoke did not preserve cursor recovery state.")
+        }
+
+        verifyToolbarLayout("Safe Mode full", configure: { snapshot in
+            snapshot.toolbarOrientation = .vertical
+            snapshot.toolbarCollapsed = false
+            snapshot.toolbarCompactMode = false
+        }, failures: &failures)
+
+        verifyToolbarLayout("Safe Mode compact", configure: { snapshot in
             snapshot.toolbarOrientation = .vertical
             snapshot.toolbarCollapsed = false
             snapshot.toolbarCompactMode = true

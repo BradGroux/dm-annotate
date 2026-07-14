@@ -218,6 +218,6 @@ Reference run on July 14, 2026, using an Apple M5 with macOS 26.5.1: two million
 
 ## Safe Mode
 
-Hold `Shift` while launching to start in Safe Mode. Safe Mode disables overlays and global shortcuts so you can recover from bad settings or permission issues.
+Hold `Shift` while launching to start in Safe Mode. Safe Mode disables overlays, annotation tool selection in every toolbar layout, and global shortcuts so you can recover from bad settings or permission issues. Cursor, toolbar layout, settings, and other recovery controls remain available. Quit and reopen normally to draw again.
 
 If the previous run exited abnormally, the next launch starts in cursor mode and recenters the toolbar.
