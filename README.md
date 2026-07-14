@@ -56,6 +56,7 @@ Public release automation fails closed unless signing, notarization, Gatekeeper 
 - [Usage guide](docs/USAGE.md)
 - [Shortcut reference](docs/SHORTCUTS.md)
 - [Architecture notes](docs/ARCHITECTURE.md)
+- [Performance checks](docs/PERFORMANCE.md)
 - [Codebase audit](docs/CODEBASE_AUDIT.md)
 - [Release guide](docs/RELEASE.md)
 - [Product requirements](docs/PRD.md)

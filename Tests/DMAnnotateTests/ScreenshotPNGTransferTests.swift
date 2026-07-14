@@ -21,10 +21,8 @@ import Testing
     bitmap.size = NSSize(width: 2, height: 1)
     bitmap.setColor(NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 0.5), atX: 1, y: 1)
 
-    let image = NSImage(size: NSSize(width: 2, height: 1))
-    image.addRepresentation(bitmap)
-
-    let data = try ScreenshotPNGEncoder().encode(image)
+    let cgImage = try #require(bitmap.cgImage)
+    let data = try ScreenshotPNGEncoder().encode(cgImage)
     let decoded = try #require(NSBitmapImageRep(data: data))
 
     #expect(data.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]))
@@ -50,6 +48,39 @@ import Testing
 }
 
 @MainActor
+@Test func pngFileWriterCreatesParentAndWritesDecodablePNGOffMainActor() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("dm-annotate-png-writer-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("nested/capture.png")
+    let bitmap = try #require(
+        NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 3,
+            pixelsHigh: 2,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+    )
+    let cgImage = try #require(bitmap.cgImage)
+
+    try await Task.detached {
+        try ScreenshotPNGFileWriter().write(cgImage, to: file)
+    }.value
+
+    let data = try Data(contentsOf: file)
+    let decoded = try #require(NSBitmapImageRep(data: data))
+    #expect(decoded.pixelsWide == 3)
+    #expect(decoded.pixelsHigh == 2)
+    #expect(decoded.hasAlpha)
+}
+
+@MainActor
 private func testPNGData() throws -> Data {
     let bitmap = try #require(
         NSBitmapImageRep(
@@ -65,9 +96,8 @@ private func testPNGData() throws -> Data {
             bitsPerPixel: 0
         )
     )
-    let image = NSImage(size: NSSize(width: 2, height: 2))
-    image.addRepresentation(bitmap)
-    return try ScreenshotPNGEncoder().encode(image)
+    let cgImage = try #require(bitmap.cgImage)
+    return try ScreenshotPNGEncoder().encode(cgImage)
 }
 
 @MainActor
