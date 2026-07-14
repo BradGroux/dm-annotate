@@ -2,6 +2,23 @@
 
 Shortcuts are configurable in Settings. Clear a shortcut field to disable that action.
 
+Shortcut key names use macOS virtual key positions, so a shortcut keeps the same
+physical key when the active keyboard input source changes. The recorder supports
+letters, numbers, ANSI punctuation, Tab, Space, Return, Delete, F1-F20, and
+navigation keys. Numeric-keypad keys are rejected so their printable symbols do
+not collide with main-keyboard descriptors. Unsupported keys are
+rejected instead of being saved as shortcuts that cannot run. Shortcuts containing
+Control or Option can run while another app is active; Command-only shortcuts
+remain app-local.
+
+Preferences saved by an older release used characters from the keyboard layout
+that was active when the shortcut was recorded. On first launch after upgrading,
+those descriptors are converted once through the active input layout to the new
+physical-key format. A legacy value that the active layout cannot resolve is kept
+in an explicit non-dispatching legacy mode and remains visible in Settings so it
+can be recorded again without silently changing which key it means. Delete and Forward Delete are separate shortcut keys;
+pressing either one without modifiers still clears the recorder field.
+
 The defaults are:
 
 | Action | Default shortcut |

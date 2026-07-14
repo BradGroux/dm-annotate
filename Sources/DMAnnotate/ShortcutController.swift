@@ -277,8 +277,15 @@ struct ShortcutDescriptor: Equatable, Hashable {
 
     init(event: NSEvent) {
         let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
-        let key = ShortcutDescriptor.keyName(for: event)
-        normalized = ShortcutDescriptor.normalize(modifiers: flags, key: key)
+        var modifiers: ShortcutModifiers = []
+        if flags.contains(.control) { modifiers.insert(.control) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        normalized = PortableShortcutDescriptor.resolve(
+            keyCode: Int64(event.keyCode),
+            modifiers: modifiers
+        ) ?? ""
     }
 
     static func normalize(_ raw: String) -> String {
@@ -293,26 +300,4 @@ struct ShortcutDescriptor: Equatable, Hashable {
         ShortcutText.isValid(raw)
     }
 
-    private static func normalize(modifiers: NSEvent.ModifierFlags, key: String) -> String {
-        if key == "escape" {
-            return "escape"
-        }
-
-        var parts: [String] = []
-        if modifiers.contains(.control) { parts.append("control") }
-        if modifiers.contains(.option) { parts.append("option") }
-        if modifiers.contains(.shift) { parts.append("shift") }
-        if modifiers.contains(.command) { parts.append("command") }
-        parts.append(key)
-        return ShortcutText.normalize(parts.joined(separator: "+"))
-    }
-
-    private static func keyName(for event: NSEvent) -> String {
-        switch event.keyCode {
-        case 53:
-            return "escape"
-        default:
-            return event.charactersIgnoringModifiers?.lowercased() ?? ""
-        }
-    }
 }

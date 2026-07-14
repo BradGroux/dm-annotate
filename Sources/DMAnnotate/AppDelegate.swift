@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         installAppMenus()
         configureStatusItem()
         observeShortcutPreferences()
+        observeKeyboardLayout()
         if !launchState.isSafeMode {
             overlayController.start()
         }
@@ -165,11 +166,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] _ in
-                guard let self else { return }
-                self.installAppMenus()
-                self.statusItem?.menu = AppMenuBuilder(target: self, shortcuts: self.preferences.snapshot.shortcuts).statusMenu()
+                self?.refreshShortcutMenus()
             }
             .store(in: &cancellables)
+    }
+
+    private func observeKeyboardLayout() {
+        NotificationCenter.default.publisher(for: NSTextInputContext.keyboardSelectionDidChangeNotification)
+            .sink { [weak self] _ in
+                self?.refreshShortcutMenus()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func refreshShortcutMenus() {
+        installAppMenus()
+        statusItem?.menu = AppMenuBuilder(target: self, shortcuts: preferences.snapshot.shortcuts).statusMenu()
     }
 
     @objc func showToolbar() {
