@@ -210,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 
     @objc func toggleAnnotationMode() {
         guard !runtimeState.isSafeMode else { return }
-        store.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
+        preferences.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
     }
 
     @objc func cursorMode() {
@@ -319,7 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
               let rawValue = sender.representedObject as? String,
               let tool = AnnotationTool(rawValue: rawValue) else { return }
 
-        store.setActiveTool(tool)
+        preferences.setActiveTool(tool)
     }
 
     @objc func undo() {
@@ -393,7 +393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("- command palette actions generated")
             print("- toolbar preset preferences round-tripped")
             print("- screenshot feedback rendered without animation")
-            print("- Settings live accessibility tree and keyboard loop verified")
+            print("- Settings live accessibility tree, board pair, and keyboard loop verified")
             NSApp.terminate(nil)
             return
         }
@@ -411,6 +411,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     }
 
     private func verifySettingsAccessibility(failures: inout [String]) {
+        settingsWindowController.show(section: .tools)
+        settleWindows()
+
+        guard let toolsWindow = settingsWindowController.accessibilityVerificationWindow else {
+            failures.append("Settings accessibility smoke could not access the live Tools Settings window.")
+            return
+        }
+        failures.append(contentsOf: SettingsAccessibilitySmokeVerifier.verifyBoardVisibility(
+            window: toolsWindow,
+            preferences: preferences
+        ))
+
         settingsWindowController.show(section: .shortcuts)
         settleWindows()
 
@@ -698,7 +710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         if !runtimeState.isSafeMode {
             commands.insert(contentsOf: AnnotationTool.allCases.filter { $0 != .cursor }.map { tool in
                 CommandPaletteCommand(title: tool.displayName, subtitle: "Switch active annotation tool", systemImage: tool.systemImageName) { [weak self] in
-                    self?.store.setActiveTool(tool)
+                    self?.preferences.setActiveTool(tool)
                 }
             }, at: 1)
         }

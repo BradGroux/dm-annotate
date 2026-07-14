@@ -142,7 +142,7 @@ Select mode supports:
 - Recoloring a selected annotation from toolbar color controls.
 - Resizing selected strokes and shapes from toolbar stroke controls.
 
-Whiteboard and blackboard controls toggle white and black presentation backgrounds. Settings can still choose light grid or dark grid board backgrounds.
+Whiteboard and blackboard controls toggle the light and dark board families. The background selected in Settings remains solid or grid when you switch families, turn the board off and on, or restart the app.
 
 | Whiteboard | Blackboard |
 | --- | --- |
@@ -188,9 +188,9 @@ Settings include:
 - Compact presenter mode and local toolbar presets.
 - High contrast toolbar.
 - Toolbar tooltips.
-- Visible tools.
+- Visible tools, with one paired control that shows or hides both Whiteboard and Blackboard.
 - Screenshot output and folder.
-- Whiteboard background.
+- Board background style.
 - Default color, toolbar palette, and saved palettes.
 - Keyboard shortcuts with duplicate detection and disable support.
 - Community links for SSTB.ai, the Start Small, Think Big podcast playlist, and Discord.

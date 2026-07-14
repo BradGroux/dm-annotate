@@ -173,6 +173,35 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         return normalized
     }
 
+    public var boardToolsVisible: Bool {
+        visibleTools.contains(.whiteboard) && visibleTools.contains(.blackboard)
+    }
+
+    public mutating func setBoardToolsVisible(_ isVisible: Bool) {
+        if isVisible {
+            visibleTools.insert(.whiteboard)
+            visibleTools.insert(.blackboard)
+        } else {
+            visibleTools.remove(.whiteboard)
+            visibleTools.remove(.blackboard)
+        }
+        visibleTools = Self.normalizedVisibleTools(visibleTools)
+    }
+
+    public mutating func setToolVisible(_ tool: AnnotationTool, isVisible: Bool) {
+        guard tool != .whiteboard, tool != .blackboard else {
+            setBoardToolsVisible(isVisible)
+            return
+        }
+
+        if isVisible {
+            visibleTools.insert(tool)
+        } else {
+            visibleTools.remove(tool)
+        }
+        visibleTools = Self.normalizedVisibleTools(visibleTools)
+    }
+
     public static func normalizedShortcuts(_ shortcuts: [ShortcutAction: String]) -> [ShortcutAction: String] {
         var normalized = ShortcutAction.defaultShortcuts
 

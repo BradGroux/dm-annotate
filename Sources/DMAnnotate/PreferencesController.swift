@@ -49,6 +49,16 @@ final class PreferencesController: ObservableObject {
         applyToStore()
     }
 
+    func setActiveTool(_ tool: AnnotationTool) {
+        store.setActiveTool(tool)
+
+        guard tool == .whiteboard || tool == .blackboard,
+              snapshot.whiteboardBackground != store.whiteboardBackground else {
+            return
+        }
+        update { $0.whiteboardBackground = store.whiteboardBackground }
+    }
+
     func applyToStore() {
         store.currentColor = snapshot.defaultColor
         store.whiteboardBackground = snapshot.whiteboardBackground

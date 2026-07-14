@@ -158,7 +158,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .general: "Core behavior, screenshots, and whiteboard defaults."
+        case .general: "Core behavior, screenshots, and board defaults."
         case .tools: "Choose which annotation tools appear in the toolbar."
         case .colors: "Manage the default color, toolbar palette, and saved palettes."
         case .shortcuts: "Customize or disable keyboard shortcuts."

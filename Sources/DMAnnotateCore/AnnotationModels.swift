@@ -91,6 +91,21 @@ public enum WhiteboardBackground: String, CaseIterable, Codable, Hashable, Ident
     case darkGrid
 
     public var id: String { rawValue }
+
+    public var isDarkBoard: Bool {
+        self == .black || self == .darkGrid
+    }
+
+    public func adapted(for tool: AnnotationTool) -> WhiteboardBackground {
+        switch tool {
+        case .whiteboard:
+            return self == .darkGrid || self == .lightGrid ? .lightGrid : .white
+        case .blackboard:
+            return self == .darkGrid || self == .lightGrid ? .darkGrid : .black
+        default:
+            return self
+        }
+    }
 }
 
 public enum ShortcutAction: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {

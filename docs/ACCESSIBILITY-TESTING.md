@@ -3,6 +3,7 @@
 The packaged UI smoke (`scripts/smoke-ui.sh`) opens the real Settings window and validates the live application accessibility tree through `AXUIElement`. It checks:
 
 - the selected Shortcuts sidebar item exposes `AXButton`, `AXPress`, `AXSelected=true`, and the value `Selected`;
+- the Tools section exposes one named `AXCheckBox` for the Whiteboard/Blackboard pair, and `AXPress` hides or shows both tools atomically;
 - the Command Palette recorder is present in the automatic forward and reverse key-view loop;
 - the recorder is discoverable by its stable AX identifier and exposes `AXButton`, `AXPress`, and its assigned `AXValue`;
 - Space and Return start recording through real window event dispatch;
