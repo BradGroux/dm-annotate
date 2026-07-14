@@ -6,6 +6,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+### Fixed
+
+- Generate release notes from the matching versioned changelog section and fail before publication when that section is missing, empty, or duplicated.
+
 ## 0.1.13 - 2026-07-14
 
 ### Security

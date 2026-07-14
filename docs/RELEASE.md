@@ -238,7 +238,7 @@ git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-The workflow accepts public release tags only in exact `vMAJOR.MINOR.PATCH` form, fails if the tag does not match `CFBundleShortVersionString`, and verifies the tagged commit is reachable from `main`. Public tags fail when signing/notarization secrets are missing or partial. Notarization can use either App Store Connect API key secrets or Apple ID app-specific password secrets, but not both.
+The workflow accepts public release tags only in exact `vMAJOR.MINOR.PATCH` form, fails if the tag does not match `CFBundleShortVersionString`, and verifies the tagged commit is reachable from `main`. It also requires exactly one non-empty `## VERSION - YYYY-MM-DD` section in `CHANGELOG.md` and includes that section under **What's improved** in the generated release notes. Public tags fail when signing/notarization secrets are missing or partial. Notarization can use either App Store Connect API key secrets or Apple ID app-specific password secrets, but not both.
 
 Manual runs require an explicit mode:
 

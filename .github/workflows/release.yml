@@ -92,6 +92,8 @@ jobs:
           bash -n scripts/generate-release-checksum.sh
           bash -n scripts/verify-release-checksum.sh
           bash -n scripts/test-release-checksum.sh
+          bash -n scripts/extract-release-changelog.sh
+          bash -n scripts/test-release-changelog.sh
           bash -n scripts/test-release-architectures.sh
           bash -n scripts/verify-release-zip.sh
           bash -n scripts/verify-executable-architectures.sh
@@ -101,6 +103,7 @@ jobs:
           scripts/test-release-config.sh
           scripts/test-release-architectures.sh
           scripts/test-release-checksum.sh
+          scripts/test-release-changelog.sh
 
       - name: Validate signing configuration
         id: signing
@@ -199,9 +202,11 @@ jobs:
           else
             release_heading="Public release"
           fi
+          changelog_section="$(scripts/extract-release-changelog.sh '${{ steps.version.outputs.version }}')"
           {
             printf '## dm-annotate %s\n\n%s of Digital Meld Annotate, a native, local-only macOS screen annotation tool.\n\n' \
               '${{ steps.version.outputs.version }}' "${release_heading}"
+            printf "## What's improved\n\n%s\n\n" "${changelog_section}"
             cat <<'EOF'
           ### Install
 
