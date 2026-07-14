@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsShortcutsSectionView: View {
     @ObservedObject var preferences: PreferencesController
     var shortcutController: ShortcutController
+    @ObservedObject var runtimeState: AppRuntimeState
 
     var body: some View {
         let duplicates = preferences.duplicateShortcuts()
@@ -51,10 +52,12 @@ struct SettingsShortcutsSectionView: View {
                 Button("Reset Shortcuts") {
                     preferences.update { $0.shortcuts = ShortcutAction.defaultShortcuts }
                 }
-                Button("Test Current Shortcuts") {
-                    shortcutController.stop()
-                    shortcutController.start()
+                Button(ShortcutRecoveryPresentation.actionLabel) {
+                    shortcutController.restart()
                 }
+                .accessibilityLabel(ShortcutRecoveryPresentation.actionLabel)
+                .disabled(!ShortcutRecoveryPresentation.isEnabled(isSafeMode: runtimeState.isSafeMode))
+                .help(ShortcutRecoveryPresentation.actionHelp(isSafeMode: runtimeState.isSafeMode))
             }
         }
     }

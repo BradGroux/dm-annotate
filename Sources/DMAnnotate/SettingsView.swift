@@ -96,7 +96,11 @@ struct SettingsView: View {
         case .colors:
             SettingsColorsSectionView(store: store, preferences: preferences)
         case .shortcuts:
-            SettingsShortcutsSectionView(preferences: preferences, shortcutController: shortcutController)
+            SettingsShortcutsSectionView(
+                preferences: preferences,
+                shortcutController: shortcutController,
+                runtimeState: runtimeState
+            )
         case .community:
             SettingsCommunitySectionView()
         case .help:

@@ -38,12 +38,12 @@ struct SettingsDiagnosticsSectionView: View {
                 Button("Reveal Screenshot Folder") {
                     NSWorkspace.shared.activateFileViewerSelecting([preferences.expandedScreenshotFolderURL()])
                 }
-                Button("Restart Shortcuts") {
-                    shortcutController.stop()
-                    shortcutController.start()
+                Button(ShortcutRecoveryPresentation.actionLabel) {
+                    shortcutController.restart()
                 }
-                .disabled(runtimeState.isSafeMode)
-                .help(runtimeState.isSafeMode ? "Shortcuts are disabled in Safe Mode." : "Restart local and global shortcut monitors.")
+                .accessibilityLabel(ShortcutRecoveryPresentation.actionLabel)
+                .disabled(!ShortcutRecoveryPresentation.isEnabled(isSafeMode: runtimeState.isSafeMode))
+                .help(ShortcutRecoveryPresentation.actionHelp(isSafeMode: runtimeState.isSafeMode))
             }
         }
     }

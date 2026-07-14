@@ -56,6 +56,11 @@ final class ShortcutController: ObservableObject {
         consumableGlobalMonitor?.setPassesEventsThrough(NSApp.isActive)
     }
 
+    func restart() {
+        stop()
+        start()
+    }
+
     func stop() {
         consumableGlobalMonitor?.stop()
         consumableGlobalMonitor = nil
@@ -269,6 +274,21 @@ final class ShortcutController: ObservableObject {
     private func setQuickColor(at index: Int) {
         guard preferences.snapshot.paletteColors.indices.contains(index) else { return }
         store.setQuickColor(preferences.snapshot.paletteColors[index])
+    }
+}
+
+enum ShortcutRecoveryPresentation {
+    static let actionLabel = "Restart Shortcut Monitoring"
+
+    static func isEnabled(isSafeMode: Bool) -> Bool {
+        !isSafeMode
+    }
+
+    static func actionHelp(isSafeMode: Bool) -> String {
+        if isSafeMode {
+            return "Shortcuts are disabled in Safe Mode."
+        }
+        return "Restart local and global shortcut monitors. This does not test or grant macOS permissions."
     }
 }
 
