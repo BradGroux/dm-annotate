@@ -383,6 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         verifyToolbarPresetPreferences(failures: &failures)
         verifyScreenshotFeedback(failures: &failures)
         verifySettingsAccessibility(failures: &failures)
+        verifyInlineTextEditorPresentation(failures: &failures)
 
         if failures.isEmpty {
             print("dm-annotate UI smoke OK")
@@ -394,6 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("- toolbar preset preferences round-tripped")
             print("- screenshot feedback rendered without animation")
             print("- Settings live accessibility tree, board pair, and keyboard loop verified")
+            print("- inline text editor contrast chrome resolved")
             NSApp.terminate(nil)
             return
         }
@@ -644,6 +646,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         }
 
         screenshotFeedbackPresenter.prepareForCapture()
+    }
+
+    private func verifyInlineTextEditorPresentation(failures: inout [String]) {
+        for color in RGBAColor.palette {
+            let presentation = InlineTextEditorPresentation.resolve(
+                finalColor: color,
+                increaseContrast: true
+            )
+            let textView = NSTextView(frame: CGRect(x: 0, y: 0, width: 220, height: 38))
+            presentation.apply(to: textView)
+
+            if presentation.textContrastRatio < InlineTextEditorPresentation.minimumContrastRatio {
+                failures.append("Inline text editor palette contrast fell below 4.5:1.")
+                return
+            }
+            if !textView.drawsBackground ||
+                textView.layer?.borderWidth != 2 ||
+                textView.selectedTextAttributes[.backgroundColor] == nil ||
+                textView.selectedTextAttributes[.foregroundColor] == nil {
+                failures.append("Inline text editor did not apply stable Increase Contrast chrome.")
+                return
+            }
+        }
     }
 
     private func commandPaletteCommands() -> [CommandPaletteCommand] {

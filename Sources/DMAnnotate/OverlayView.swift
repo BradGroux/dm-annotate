@@ -11,6 +11,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private var strokePathCache: [AnnotationItem.ID: NSBezierPath] = [:]
     private weak var activeTextView: NSTextView?
     private var activeTextOrigin: CGPoint?
+    private(set) var activeTextColor: RGBAColor?
     private var textMove: TextMove?
     private var annotationMove: AnnotationMove?
 
@@ -23,6 +24,16 @@ final class OverlayView: NSView, NSTextViewDelegate {
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(accessibilityDisplayOptionsDidChange(_:)),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
     required init?(coder: NSCoder) {
@@ -49,9 +60,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
             preview = nil
             textMove = nil
             annotationMove = nil
-            activeTextView?.removeFromSuperview()
-            activeTextView = nil
-            activeTextOrigin = nil
+        }
+        if store.activeTool != .text {
+            clearActiveTextSession()
         }
         needsDisplay = true
     }
@@ -276,8 +287,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         NSCursor.closedHand.set()
     }
 
-    private func beginTextEntry(at point: CGPoint) {
-        activeTextView?.removeFromSuperview()
+    func beginTextEntry(at point: CGPoint) {
+        clearActiveTextSession()
+        let sessionColor = store.currentColor
 
         let textView = NSTextView(
             frame: CGRect(
@@ -289,9 +301,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
         )
         textView.delegate = self
         textView.font = .systemFont(ofSize: store.textFontSize, weight: NSFont.Weight(store.textFontWeight))
-        textView.textColor = NSColor(store.currentColor)
-        textView.backgroundColor = NSColor.black.withAlphaComponent(0.18)
-        textView.drawsBackground = true
         textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
@@ -306,16 +315,30 @@ final class OverlayView: NSView, NSTextViewDelegate {
             width: minimumTextEditorSize.width - (textView.textContainerInset.width * 2),
             height: CGFloat.greatestFiniteMagnitude
         )
-        textView.insertionPointColor = NSColor(store.currentColor)
-        textView.wantsLayer = true
-        textView.layer?.cornerRadius = 6
-        textView.layer?.borderWidth = 1
-        textView.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+        InlineTextEditorPresentation.resolve(
+            finalColor: sessionColor,
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        ).apply(to: textView)
 
         addSubview(textView)
         activeTextView = textView
         activeTextOrigin = point
+        activeTextColor = sessionColor
         window?.makeFirstResponder(textView)
+    }
+
+    func refreshActiveTextEditorPresentation(increaseContrast: Bool) {
+        guard let activeTextView, let activeTextColor else { return }
+        InlineTextEditorPresentation.resolve(
+            finalColor: activeTextColor,
+            increaseContrast: increaseContrast
+        ).apply(to: activeTextView)
+    }
+
+    @objc private func accessibilityDisplayOptionsDidChange(_ notification: Notification) {
+        refreshActiveTextEditorPresentation(
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        )
     }
 
     private func beginTextMove(at point: CGPoint) -> Bool {
@@ -362,9 +385,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private func commitTextView(_ textView: NSTextView) {
         let text = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         let origin = textView.frame.origin
+        let textColor = activeTextColor ?? store.currentColor
         textView.removeFromSuperview()
-        activeTextView = nil
-        activeTextOrigin = nil
+        clearActiveTextSession()
 
         guard !text.isEmpty else { return }
 
@@ -373,7 +396,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
                 displayID: displayID,
                 kind: .text,
                 points: [origin],
-                color: store.currentColor,
+                color: textColor,
                 lineWidth: store.strokeWidth,
                 text: text,
                 fontSize: store.textFontSize,
@@ -385,15 +408,33 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
     private func cancelTextView(_ textView: NSTextView) {
         textView.removeFromSuperview()
-        activeTextView = nil
-        activeTextOrigin = nil
+        clearActiveTextSession()
         store.exitScreenControls()
         needsDisplay = true
     }
 
+    private func clearActiveTextSession() {
+        activeTextView?.removeFromSuperview()
+        activeTextView = nil
+        activeTextOrigin = nil
+        activeTextColor = nil
+    }
+
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        handleTextCommand(
+            commandSelector,
+            in: textView,
+            shiftPressed: NSApp.currentEvent?.modifierFlags.contains(.shift) == true
+        )
+    }
+
+    func handleTextCommand(
+        _ commandSelector: Selector,
+        in textView: NSTextView,
+        shiftPressed: Bool
+    ) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+            if shiftPressed {
                 textView.insertText("\n", replacementRange: textView.selectedRange())
                 resizeTextView(textView)
                 return true
@@ -454,7 +495,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         }
     }
 
-    private func clampedTextEditorFrame(_ frame: CGRect) -> CGRect {
+    func clampedTextEditorFrame(_ frame: CGRect) -> CGRect {
         let margin: CGFloat = 8
         let maxX = max(bounds.maxX - frame.width - margin, margin)
         let maxY = max(bounds.maxY - frame.height - margin, margin)
