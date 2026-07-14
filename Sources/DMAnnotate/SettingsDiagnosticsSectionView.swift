@@ -18,7 +18,7 @@ struct SettingsDiagnosticsSectionView: View {
             }
             SettingsDiagnosticsRow(label: "Screen Recording", value: PermissionChecks.screenRecordingStatus().label)
             SettingsDiagnosticsRow(label: "Accessibility", value: PermissionChecks.accessibilityStatus().label)
-            SettingsDiagnosticsRow(label: "Input Monitoring", value: "Check Manually")
+            SettingsDiagnosticsRow(label: "Input Monitoring", value: PermissionChecks.inputMonitoringStatus().label)
             SettingsDiagnosticsRow(label: "Global shortcuts", value: shortcutController.globalShortcutMonitorState.label)
             if let shortcutDetail = shortcutController.globalShortcutMonitorState.detail {
                 SettingsDiagnosticsRow(label: "Shortcut note", value: shortcutDetail)

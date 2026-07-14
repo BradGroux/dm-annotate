@@ -11,6 +11,7 @@ final class ShortcutController: ObservableObject {
     private var localMonitor: Any?
     private var shortcutPreferencesCancellable: AnyCancellable?
     private var appActivationCancellables: Set<AnyCancellable> = []
+    private var activationRecovery: ShortcutActivationRecovery?
     private var escapeQuitDeadline: Date?
     private let doubleEscapeInterval: TimeInterval = 0.85
     @Published private(set) var globalShortcutMonitorState: GlobalShortcutMonitorState = .inactive
@@ -39,11 +40,9 @@ final class ShortcutController: ObservableObject {
                 self?.configureGlobalShortcutMonitor(shortcuts: shortcuts)
             }
 
-        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
-                self?.consumableGlobalMonitor?.setPassesEventsThrough(true)
-            }
-            .store(in: &appActivationCancellables)
+        activationRecovery = ShortcutActivationRecovery { [weak self] in
+            self?.refreshGlobalShortcutMonitor()
+        }
 
         NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)
             .sink { [weak self] _ in
@@ -52,10 +51,16 @@ final class ShortcutController: ObservableObject {
             .store(in: &appActivationCancellables)
     }
 
+    func refreshGlobalShortcutMonitor() {
+        configureGlobalShortcutMonitor(shortcuts: preferences.snapshot.shortcuts)
+        consumableGlobalMonitor?.setPassesEventsThrough(NSApp.isActive)
+    }
+
     func stop() {
         consumableGlobalMonitor?.stop()
         consumableGlobalMonitor = nil
         shortcutPreferencesCancellable = nil
+        activationRecovery = nil
         appActivationCancellables.removeAll()
         globalShortcutMonitorState = .inactive
         if let localMonitor {
