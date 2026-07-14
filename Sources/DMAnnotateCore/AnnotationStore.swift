@@ -134,6 +134,13 @@ public final class AnnotationStore: ObservableObject {
         )
     }
 
+    nonisolated public static func sessionSaveFailureMessage(for error: Error) -> String {
+        let recoverySuggestion = (error as? LocalizedError)?.recoverySuggestion
+        let recovery = recoverySuggestion.map { " \($0)" } ?? ""
+        return "Annotation session save failed. No partial session was saved, and an existing file was left unchanged. " +
+            "\(error.localizedDescription)\(recovery)"
+    }
+
     @discardableResult
     public func add(_ annotation: AnnotationItem) -> Bool {
         guard annotations.count < Self.maximumAnnotationCount else { return false }
@@ -325,6 +332,15 @@ public final class AnnotationStore: ObservableObject {
             whiteboardModeEnabled: whiteboardModeEnabled,
             whiteboardBackground: whiteboardBackground
         )
+    }
+
+    public func sessionData(createdAt: Date = Date()) throws -> Data {
+        try sessionDocument(createdAt: createdAt).encodedData()
+    }
+
+    public func exportSession(to url: URL, createdAt: Date = Date()) throws {
+        let data = try sessionData(createdAt: createdAt)
+        try data.write(to: url, options: .atomic)
     }
 
     public func loadSession(_ session: AnnotationSessionDocument) {

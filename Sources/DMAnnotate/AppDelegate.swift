@@ -224,10 +224,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            let data = try store.sessionDocument().encodedData()
-            try data.write(to: url, options: .atomic)
+            try store.exportSession(to: url)
         } catch {
-            showError("Annotation session save failed: \(error.localizedDescription)")
+            showError(AnnotationStore.sessionSaveFailureMessage(for: error))
         }
     }
 

@@ -394,7 +394,9 @@ import Testing
     #expect(!restored.canUndo)
 }
 
-@Test func annotationSessionRejectsOversizedEncodedFiles() {
+@Test func annotationSessionEncodedByteBoundaryAcceptsMaximumAndRejectsNextByte() throws {
+    try AnnotationSessionDocument.validateEncodedByteCount(AnnotationSessionDocument.maximumEncodedByteCount)
+
     expectSessionError(.fileTooLarge(
         byteCount: AnnotationSessionDocument.maximumEncodedByteCount + 1,
         maximum: AnnotationSessionDocument.maximumEncodedByteCount
@@ -459,6 +461,291 @@ import Testing
     )) {
         _ = try tooManyPointsDocument.validated()
     }
+}
+
+@Test func annotationSessionEncodingRejectsTooManyPoints() {
+    let annotationID = UUID()
+    let document = AnnotationSessionDocument(
+        annotations: [
+            AnnotationItem(
+                id: annotationID,
+                displayID: 1,
+                kind: .pen,
+                points: (0...AnnotationSessionDocument.maximumPointsPerAnnotation).map {
+                    CGPoint(x: CGFloat($0), y: 0)
+                },
+                color: .red,
+                lineWidth: 3
+            )
+        ],
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    expectSessionError(.tooManyPoints(
+        annotationID: annotationID,
+        count: AnnotationSessionDocument.maximumPointsPerAnnotation + 1,
+        maximum: AnnotationSessionDocument.maximumPointsPerAnnotation
+    )) {
+        _ = try document.encodedData()
+    }
+}
+
+@Test func annotationSessionLivePointAppendStaysBoundedAndPreservesPathBasics() {
+    var annotation = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 0, y: 0)],
+        color: .red,
+        lineWidth: 3
+    )
+    let finalX = AnnotationSessionDocument.maximumPointsPerAnnotation * 2 + 1
+
+    for x in 1...finalX {
+        annotation.appendSessionPoint(CGPoint(x: CGFloat(x), y: CGFloat(x % 7)))
+        #expect(annotation.points.count <= AnnotationSessionDocument.maximumPointsPerAnnotation)
+    }
+
+    #expect(annotation.points.first == CGPoint(x: 0, y: 0))
+    #expect(annotation.points.last == CGPoint(x: CGFloat(finalX), y: CGFloat(finalX % 7)))
+    #expect(zip(annotation.points, annotation.points.dropFirst()).allSatisfy { $0.x < $1.x })
+}
+
+@Test func annotationSessionLivePointReductionPreservesOddIndexSharpTurn() {
+    let maximum = AnnotationSessionDocument.maximumPointsPerAnnotation
+    let sharpTurnIndex = 9_999
+    var points = (0..<maximum).map { CGPoint(x: CGFloat($0), y: 0) }
+    let sharpTurn = CGPoint(x: CGFloat(sharpTurnIndex), y: 500)
+    points[sharpTurnIndex] = sharpTurn
+    var annotation = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: points,
+        color: .red,
+        lineWidth: 3
+    )
+
+    annotation.appendSessionPoint(CGPoint(x: CGFloat(maximum), y: 0))
+
+    #expect(annotation.points.count <= maximum)
+    #expect(annotation.points.first == points.first)
+    #expect(annotation.points.last == CGPoint(x: CGFloat(maximum), y: 0))
+    #expect(annotation.points.contains(sharpTurn))
+}
+
+@MainActor
+@Test func annotationSessionReducedStrokeRemainsOneUndoableAnnotation() {
+    let maximum = AnnotationSessionDocument.maximumPointsPerAnnotation
+    var annotation = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: (0..<maximum).map { CGPoint(x: CGFloat($0), y: CGFloat($0 % 5)) },
+        color: .red,
+        lineWidth: 3
+    )
+    annotation.appendSessionPoint(CGPoint(x: CGFloat(maximum), y: 0))
+    let store = AnnotationStore()
+
+    #expect(store.add(annotation))
+    #expect(store.annotations == [annotation])
+    #expect(store.canUndo)
+
+    store.undo()
+
+    #expect(store.annotations.isEmpty)
+    #expect(!store.canUndo)
+    #expect(store.canRedo)
+}
+
+@MainActor
+@Test func annotationSessionStoreExportsOnlyReloadableData() throws {
+    let store = AnnotationStore()
+    let annotation = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: (0..<AnnotationSessionDocument.maximumPointsPerAnnotation).map {
+            CGPoint(x: CGFloat($0), y: 0)
+        },
+        color: .red,
+        lineWidth: 3
+    )
+
+    #expect(store.add(annotation))
+
+    let data = try store.sessionData(createdAt: Date(timeIntervalSince1970: 1_777_777_777))
+    let decoded = try AnnotationSessionDocument.decode(from: data)
+
+    #expect(decoded.annotations == [annotation])
+}
+
+@Test func annotationSessionEncodingRejectsOversizedOutput() {
+    let text = String(repeating: "a", count: AnnotationSessionDocument.maximumTextLength)
+    let annotations = (0..<1_400).map { index in
+        AnnotationItem(
+            displayID: 1,
+            kind: .text,
+            points: [CGPoint(x: CGFloat(index), y: 0)],
+            color: .red,
+            lineWidth: 3,
+            text: text,
+            fontSize: 24
+        )
+    }
+    let document = AnnotationSessionDocument(
+        annotations: annotations,
+        currentColor: .red,
+        strokeWidth: 3,
+        textFontSize: 24,
+        textFontWeight: .semibold,
+        isVisible: true,
+        annotationsLocked: false,
+        whiteboardModeEnabled: false,
+        whiteboardBackground: .white
+    )
+
+    do {
+        _ = try document.encodedData()
+        Issue.record("Expected oversized encoded session data to be rejected.")
+    } catch let AnnotationSessionError.fileTooLarge(byteCount, maximum) {
+        #expect(byteCount > maximum)
+        #expect(maximum == AnnotationSessionDocument.maximumEncodedByteCount)
+    } catch {
+        Issue.record("Expected fileTooLarge, but received \(error).")
+    }
+}
+
+@MainActor
+@Test func annotationSessionStoreFailedExportPreservesExistingDecodableFile() throws {
+    let annotationID = UUID()
+    let store = AnnotationStore(annotations: [
+        AnnotationItem(
+            id: annotationID,
+            displayID: 1,
+            kind: .pen,
+            points: (0...AnnotationSessionDocument.maximumPointsPerAnnotation).map {
+                CGPoint(x: CGFloat($0), y: 0)
+            },
+            color: .red,
+            lineWidth: 3
+        )
+    ])
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let url = directory.appendingPathComponent("Existing.dmannotate-session")
+    let existingAnnotation = AnnotationItem(
+        displayID: 1,
+        kind: .line,
+        points: [CGPoint(x: 10, y: 20), CGPoint(x: 30, y: 40)],
+        color: .blue,
+        lineWidth: 5
+    )
+    let existingData = try AnnotationStore(annotations: [existingAnnotation]).sessionData(
+        createdAt: Date(timeIntervalSince1970: 1_777_777_777)
+    )
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try existingData.write(to: url)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    expectSessionError(.tooManyPoints(
+        annotationID: annotationID,
+        count: AnnotationSessionDocument.maximumPointsPerAnnotation + 1,
+        maximum: AnnotationSessionDocument.maximumPointsPerAnnotation
+    )) {
+        try store.exportSession(to: url)
+    }
+
+    let preservedData = try Data(contentsOf: url)
+    let preservedDocument = try AnnotationSessionDocument.decode(from: preservedData)
+    #expect(preservedData == existingData)
+    #expect(preservedDocument.annotations == [existingAnnotation])
+}
+
+@Test func annotationSessionLimitErrorsProvideRecoveryGuidance() {
+    let annotationID = UUID()
+    let expectations: [(AnnotationSessionError, String)] = [
+        (.fileTooLarge(byteCount: 11, maximum: 10), "split"),
+        (.tooManyAnnotations(count: 11, maximum: 10), "Remove"),
+        (.tooManyPoints(annotationID: annotationID, count: 11, maximum: 10), "shorter strokes"),
+        (.textTooLong(annotationID: annotationID, count: 11, maximum: 10), "Shorten"),
+        (.invalidStyle(annotationID: annotationID), "recreate")
+    ]
+
+    for (error, expectedPhrase) in expectations {
+        #expect(error.recoverySuggestion?.contains(expectedPhrase) == true)
+    }
+}
+
+@Test func annotationSessionSaveFailureMessageExplainsPreservationAndRecovery() {
+    let error = AnnotationSessionError.fileTooLarge(byteCount: 11, maximum: 10)
+
+    let message = AnnotationStore.sessionSaveFailureMessage(for: error)
+
+    #expect(message.contains("No partial session was saved"))
+    #expect(message.contains("existing file was left unchanged"))
+    #expect(message.contains(error.localizedDescription))
+    #expect(message.contains(error.recoverySuggestion ?? "missing recovery suggestion"))
+}
+
+@MainActor
+@Test func annotationSessionStoreBoundaryStateRoundTrips() throws {
+    var annotations = (0..<(AnnotationStore.maximumAnnotationCount - 2)).map { index in
+        AnnotationItem(
+            displayID: 1,
+            kind: .line,
+            points: [CGPoint(x: CGFloat(index), y: 0)],
+            color: .red,
+            lineWidth: AnnotationStore.maximumStrokeWidth
+        )
+    }
+    let pointBoundaryID = UUID()
+    annotations.append(
+        AnnotationItem(
+            id: pointBoundaryID,
+            displayID: 1,
+            kind: .pen,
+            points: (0..<AnnotationSessionDocument.maximumPointsPerAnnotation).map {
+                CGPoint(x: CGFloat($0), y: 1)
+            },
+            color: .green,
+            lineWidth: AnnotationStore.maximumStrokeWidth
+        )
+    )
+    let textBoundaryID = UUID()
+    annotations.append(
+        AnnotationItem(
+            id: textBoundaryID,
+            displayID: 1,
+            kind: .text,
+            points: [CGPoint(x: 0, y: 2)],
+            color: .blue,
+            lineWidth: AnnotationStore.maximumStrokeWidth,
+            text: String(repeating: "a", count: AnnotationSessionDocument.maximumTextLength),
+            fontSize: AnnotationStore.maximumTextFontSize,
+            fontWeight: .bold
+        )
+    )
+    let store = AnnotationStore(
+        annotations: annotations,
+        strokeWidth: AnnotationStore.maximumStrokeWidth,
+        textFontSize: AnnotationStore.maximumTextFontSize
+    )
+
+    let data = try store.sessionData(createdAt: Date(timeIntervalSince1970: 1_777_777_777))
+    let decoded = try AnnotationSessionDocument.decode(from: data)
+
+    #expect(data.count <= Int(AnnotationSessionDocument.maximumEncodedByteCount))
+    #expect(decoded.annotations.count == AnnotationStore.maximumAnnotationCount)
+    #expect(decoded.annotations.first { $0.id == pointBoundaryID }?.points.count == AnnotationSessionDocument.maximumPointsPerAnnotation)
+    #expect(decoded.annotations.first { $0.id == textBoundaryID }?.text.count == AnnotationSessionDocument.maximumTextLength)
+    #expect(decoded.annotations.first { $0.id == textBoundaryID }?.fontSize == AnnotationStore.maximumTextFontSize)
+    #expect(decoded.strokeWidth == AnnotationStore.maximumStrokeWidth)
+    #expect(decoded.textFontSize == AnnotationStore.maximumTextFontSize)
 }
 
 @Test func annotationSessionRejectsInvalidAnnotationGeometry() {

@@ -328,6 +328,62 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
         self.fontWeight = fontWeight
     }
 
+    public mutating func appendSessionPoint(_ point: CGPoint) {
+        while points.count >= AnnotationSessionDocument.maximumPointsPerAnnotation {
+            points = Self.geometryAwareReduction(of: points)
+        }
+
+        points.append(point)
+    }
+
+    private static func geometryAwareReduction(of points: [CGPoint]) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+
+        var reduced = [points[0]]
+        reduced.reserveCapacity((points.count / 2) + 1)
+        let finalIndex = points.index(before: points.endIndex)
+        var index = points.index(after: points.startIndex)
+
+        while index < finalIndex {
+            let pairedIndex = points.index(after: index)
+            guard pairedIndex < finalIndex else {
+                reduced.append(points[index])
+                break
+            }
+
+            let firstImportance = geometricImportance(
+                previous: points[points.index(before: index)],
+                point: points[index],
+                next: points[points.index(after: index)]
+            )
+            let secondImportance = geometricImportance(
+                previous: points[points.index(before: pairedIndex)],
+                point: points[pairedIndex],
+                next: points[points.index(after: pairedIndex)]
+            )
+            reduced.append(firstImportance >= secondImportance ? points[index] : points[pairedIndex])
+            index = points.index(index, offsetBy: 2)
+        }
+
+        reduced.append(points[finalIndex])
+        return reduced
+    }
+
+    private static func geometricImportance(previous: CGPoint, point: CGPoint, next: CGPoint) -> CGFloat {
+        let chordX = next.x - previous.x
+        let chordY = next.y - previous.y
+        let chordLengthSquared = (chordX * chordX) + (chordY * chordY)
+
+        guard chordLengthSquared > 0 else {
+            let offsetX = point.x - previous.x
+            let offsetY = point.y - previous.y
+            return (offsetX * offsetX) + (offsetY * offsetY)
+        }
+
+        let crossProduct = (point.x - previous.x) * chordY - (point.y - previous.y) * chordX
+        return (crossProduct * crossProduct) / chordLengthSquared
+    }
+
     public var boundingRect: CGRect {
         switch kind {
         case .pen, .highlighter:
@@ -445,10 +501,13 @@ public struct AnnotationSessionDocument: Codable, Equatable, Sendable {
     }
 
     public func encodedData() throws -> Data {
+        let validatedDocument = try validated()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(self)
+        let data = try encoder.encode(validatedDocument)
+        try Self.validateEncodedByteCount(UInt64(data.count))
+        return data
     }
 
     public static func decode(from data: Data) throws -> AnnotationSessionDocument {
@@ -543,6 +602,23 @@ public enum AnnotationSessionError: LocalizedError, Equatable {
             "Annotation \(annotationID) contains invalid style values."
         case .textTooLong(let annotationID, let count, let maximum):
             "Annotation \(annotationID) contains \(count) characters. Maximum supported count is \(maximum)."
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .unsupportedVersion:
+            "Update Digital Meld Annotate or load a session exported by this version."
+        case .fileTooLarge:
+            "Remove some annotations or split the work across smaller session files, then save again."
+        case .tooManyAnnotations:
+            "Remove some annotations, then save again."
+        case .tooManyPoints:
+            "Undo or clear the longest strokes and redraw them as shorter strokes, then save again."
+        case .textTooLong:
+            "Shorten the affected text annotation, then save again."
+        case .invalidCurrentColor, .invalidColor, .invalidGeometry, .invalidStyle:
+            "Remove or recreate the affected annotation, then save again."
         }
     }
 }

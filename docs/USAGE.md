@@ -195,6 +195,8 @@ Use **File > Save Annotation Session...** to write the current annotations to a 
 
 Session files contain annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. If a saved display is missing when loading, annotations are retargeted to the current main display. Session files stay local and are not synced by the app.
 
+Sessions support up to 10,000 annotations, 20,000 points per annotation, 8,000 characters per text annotation, and 10 MiB of encoded data. Long live strokes are progressively simplified before they reach the point limit. Saving validates the complete session before atomically replacing a file, so a failed save leaves an existing file unchanged and reports what to reduce or recreate before retrying.
+
 ## Safe Mode
 
 Hold `Shift` while launching to start in Safe Mode. Safe Mode disables overlays and global shortcuts so you can recover from bad settings or permission issues.

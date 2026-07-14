@@ -134,7 +134,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
         case .select:
             moveSelectedAnnotation(to: point)
         case .pen, .highlighter:
-            preview?.points.append(point)
+            guard var currentPreview = preview else { return }
+            currentPreview.appendSessionPoint(point)
+            preview = currentPreview
         case .line, .rectangle, .ellipse, .arrow:
             guard var currentPreview = preview, let start = currentPreview.points.first else { return }
             currentPreview.points = [start, point]
