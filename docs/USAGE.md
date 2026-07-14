@@ -104,6 +104,10 @@ Collapsed mode intentionally shows only the drag grip and expand button.
 - Press `Escape` twice quickly to quit.
 - Press `Command+Q` while the app is focused to quit.
 
+## Command Palette
+
+Press `Command+K` to open the command palette. Search is focused immediately, so you can type to filter without pressing Tab. The first matching command is selected; use `Up Arrow` and `Down Arrow` to change the selection, `Return` to run it, or `Escape` to close the palette. Filtering that produces no matches shows an explicit empty state. Keyboard selection changes are immediate and are announced by VoiceOver.
+
 ## Tools
 
 Supported tools:
