@@ -10,6 +10,10 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 - Fail closed for public release tags unless signing, notarization, Gatekeeper validation, and default-branch provenance checks pass; keep ad-hoc previews behind an explicit draft-prerelease workflow.
 
+### Fixed
+
+- Validate annotation sessions before atomic export, preserve existing files on failed saves, and bound live stroke points so saved sessions always remain reloadable.
+
 ## 0.1.12 - 2026-05-31
 
 ### Added

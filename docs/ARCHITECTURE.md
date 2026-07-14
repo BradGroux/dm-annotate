@@ -42,7 +42,7 @@ Annotations are stored in memory as typed values:
 - Arrow
 - Text with content, font size, font weight, and color
 
-Annotation sessions can be saved to and loaded from local `.dmannotate-session` JSON files. The app preserves annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. Loading retargets annotations to the current main display when a saved display is missing.
+Annotation sessions can be saved to and loaded from local `.dmannotate-session` JSON files. The app preserves annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. Loading retargets annotations to the current main display when a saved display is missing. The core session boundary applies the same annotation, point, text, style, geometry, color, and encoded-byte validation before export and after import. Store exports validate before an atomic file replacement, and live freehand strokes are progressively simplified to remain within the session point limit.
 
 Preferences, including toolbar layout presets, are persisted locally with `UserDefaults`.
 
