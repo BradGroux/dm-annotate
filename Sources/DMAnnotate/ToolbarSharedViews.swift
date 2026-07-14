@@ -37,27 +37,95 @@ struct ToolbarIconButton: View {
 }
 
 struct ToolbarIconButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     var active: Bool
     var highContrast: Bool
 
     func makeBody(configuration: Configuration) -> some View {
+        let visualState = Self.visualState(
+            active: active,
+            highContrast: highContrast,
+            isEnabled: isEnabled,
+            isPressed: configuration.isPressed
+        )
+
         configuration.label
-            .foregroundStyle(active ? Color.white : Color.primary)
+            .foregroundStyle(color(for: visualState.foregroundToken))
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(fillColor(isPressed: configuration.isPressed))
+                    .fill(color(for: visualState.fillToken).opacity(visualState.fillOpacity))
             )
+            .opacity(visualState.contentOpacity)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
     }
 
-    private func fillColor(isPressed: Bool) -> Color {
+    static func visualState(
+        active: Bool,
+        highContrast: Bool,
+        isEnabled: Bool,
+        isPressed: Bool
+    ) -> ToolbarIconButtonVisualState {
+        guard isEnabled else {
+            return ToolbarIconButtonVisualState(
+                foregroundToken: .primary,
+                fillToken: highContrast ? .primary : .white,
+                fillOpacity: highContrast ? 0.08 : 0.035,
+                contentOpacity: 0.55
+            )
+        }
+
         if active {
-            return .accentColor
+            return ToolbarIconButtonVisualState(
+                foregroundToken: .white,
+                fillToken: .accent,
+                fillOpacity: 1,
+                contentOpacity: 1
+            )
         }
+
         if highContrast {
-            return Color.primary.opacity(isPressed ? 0.24 : 0.14)
+            return ToolbarIconButtonVisualState(
+                foregroundToken: .primary,
+                fillToken: .primary,
+                fillOpacity: isPressed ? 0.24 : 0.14,
+                contentOpacity: 1
+            )
         }
-        return Color.white.opacity(isPressed ? 0.14 : 0.07)
+
+        return ToolbarIconButtonVisualState(
+            foregroundToken: .primary,
+            fillToken: .white,
+            fillOpacity: isPressed ? 0.14 : 0.07,
+            contentOpacity: 1
+        )
     }
+
+    private func color(for token: ToolbarIconButtonVisualState.ColorToken) -> Color {
+        switch token {
+        case .accent:
+            return .accentColor
+        case .primary:
+            return .primary
+        case .white:
+            return .white
+        }
+    }
+}
+
+struct ToolbarIconButtonVisualState: Equatable {
+    enum ColorToken: Equatable {
+        case accent
+        case primary
+        case white
+    }
+
+    var foregroundToken: ColorToken
+    var fillToken: ColorToken
+    var fillOpacity: Double
+    var contentOpacity: Double
 }
 
 struct ToolbarTooltipModifier: ViewModifier {

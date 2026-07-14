@@ -10,7 +10,7 @@ struct ToolbarToolSelectionView: View {
     var body: some View {
         ForEach(AnnotationTool.allCases.filter { preferences.snapshot.visibleTools.contains($0) }) { tool in
             Button {
-                guard !runtimeState.isSafeMode else {
+                guard ToolbarToolAvailability.isEnabled(tool, isSafeMode: runtimeState.isSafeMode) else {
                     NSSound.beep()
                     return
                 }
@@ -19,7 +19,7 @@ struct ToolbarToolSelectionView: View {
                 ToolbarIcon(tool.systemImageName)
             }
             .buttonStyle(ToolbarIconButtonStyle(active: isActive(tool), highContrast: preferences.snapshot.highContrastToolbar))
-            .disabled(runtimeState.isSafeMode)
+            .disabled(!ToolbarToolAvailability.isEnabled(tool, isSafeMode: runtimeState.isSafeMode))
             .toolbarHelp(helpText(for: tool))
             .accessibilityLabel(tool.displayName)
         }
@@ -37,11 +37,18 @@ struct ToolbarToolSelectionView: View {
     }
 
     private func helpText(for tool: AnnotationTool) -> String {
-        guard let action = ShortcutAction.toolAction(for: tool) else {
-            return tool.displayName
+        let availableHelp: String
+        if let action = ShortcutAction.toolAction(for: tool) {
+            availableHelp = tooltip(tool.displayName, action: action)
+        } else {
+            availableHelp = tool.displayName
         }
 
-        return tooltip(tool.displayName, action: action)
+        return ToolbarToolAvailability.helpText(
+            for: tool,
+            isSafeMode: runtimeState.isSafeMode,
+            availableHelp: availableHelp
+        )
     }
 
     private func tooltip(_ label: String, action: ShortcutAction) -> String {
