@@ -51,15 +51,16 @@ struct ToolbarIconButtonStyle: ButtonStyle {
         )
 
         configuration.label
-            .foregroundStyle(color(for: visualState.foregroundToken))
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(color(for: visualState.fillToken).opacity(visualState.fillOpacity))
+            .adaptiveSelectedControl(
+                selected: active,
+                unselectedForeground: color(for: visualState.foregroundToken),
+                unselectedBackground: color(for: visualState.fillToken).opacity(visualState.fillOpacity),
+                cornerRadius: 8,
+                emphasizeContrast: highContrast,
+                disabledOpacity: visualState.contentOpacity,
+                suppressSelectionWhenDisabled: true,
+                isPressed: configuration.isPressed
             )
-            .opacity(visualState.contentOpacity)
-            .transaction { transaction in
-                transaction.animation = nil
-            }
     }
 
     static func visualState(
@@ -74,15 +75,6 @@ struct ToolbarIconButtonStyle: ButtonStyle {
                 fillToken: highContrast ? .primary : .white,
                 fillOpacity: highContrast ? 0.08 : 0.035,
                 contentOpacity: 0.55
-            )
-        }
-
-        if active {
-            return ToolbarIconButtonVisualState(
-                foregroundToken: .white,
-                fillToken: .accent,
-                fillOpacity: 1,
-                contentOpacity: 1
             )
         }
 
@@ -105,8 +97,6 @@ struct ToolbarIconButtonStyle: ButtonStyle {
 
     private func color(for token: ToolbarIconButtonVisualState.ColorToken) -> Color {
         switch token {
-        case .accent:
-            return .accentColor
         case .primary:
             return .primary
         case .white:
@@ -117,7 +107,6 @@ struct ToolbarIconButtonStyle: ButtonStyle {
 
 struct ToolbarIconButtonVisualState: Equatable {
     enum ColorToken: Equatable {
-        case accent
         case primary
         case white
     }

@@ -63,11 +63,11 @@ struct ToolbarStrokeTextControlsView: View {
                     } label: {
                         Text("\(Int(width))")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(store.strokeWidth == width ? Color.white : Color.primary)
                             .frame(width: ToolbarLayoutMetrics.valueButtonWidth, height: 28)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(store.strokeWidth == width ? Color.accentColor : Color.primary.opacity(0.08))
+                            .adaptiveSelectedControl(
+                                selected: store.strokeWidth == width,
+                                unselectedBackground: Color.primary.opacity(0.08),
+                                cornerRadius: 6
                             )
                     }
                     .buttonStyle(.plain)
@@ -139,11 +139,11 @@ struct ToolbarStrokeTextControlsView: View {
                         } label: {
                             Text("\(Int(size))")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(store.textFontSize == size ? Color.white : Color.primary)
                                 .frame(width: ToolbarLayoutMetrics.valueButtonWidth, height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(store.textFontSize == size ? Color.accentColor : Color.primary.opacity(0.08))
+                                .adaptiveSelectedControl(
+                                    selected: store.textFontSize == size,
+                                    unselectedBackground: Color.primary.opacity(0.08),
+                                    cornerRadius: 6
                                 )
                         }
                         .buttonStyle(.plain)
