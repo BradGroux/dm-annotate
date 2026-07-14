@@ -1,6 +1,6 @@
 # Release Guide
 
-This project can build an ad-hoc signed local app bundle from source. Tagged GitHub releases publish a developer-preview zip when Apple release secrets are absent, and publish Developer ID signed, notarized, stapled zips when the full secret set is configured.
+This project can build an ad-hoc signed local app bundle from source. Public tagged GitHub releases fail closed unless Developer ID signing and notarization are fully configured and the tag points to `main`. Ad-hoc previews use an explicit manual workflow mode and can only be published as draft prereleases.
 
 ## macOS requirements
 
@@ -36,6 +36,7 @@ bash -n scripts/build-app.sh
 bash -n scripts/package-release.sh
 bash -n scripts/verify-release-zip.sh
 bash -n scripts/smoke-ui.sh
+scripts/test-release-config.sh
 zip_path="$(scripts/verify-release-zip.sh)"
 shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
 test -s "${zip_path}.sha256"
@@ -212,7 +213,12 @@ git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-The workflow fails if the tag does not match `CFBundleShortVersionString`. Apple signing/notarization secrets are all-or-nothing: a partial secret set fails the workflow, no secret set publishes an ad-hoc developer preview, and a complete secret set publishes a signed/notarized release. Notarization can use either App Store Connect API key secrets or Apple ID app-specific password secrets, but not both.
+The workflow accepts public release tags only in exact `vMAJOR.MINOR.PATCH` form, fails if the tag does not match `CFBundleShortVersionString`, and verifies the tagged commit is reachable from `main`. Public tags fail when signing/notarization secrets are missing or partial. Notarization can use either App Store Connect API key secrets or Apple ID app-specific password secrets, but not both.
+
+Manual runs require an explicit mode:
+
+- `signed-dry-run` uses the complete signing/notarization path but never creates a GitHub release.
+- `preview` builds an ad-hoc artifact without Apple credentials. It is retained only as a short-lived workflow artifact unless `publish_preview` is explicitly selected, in which case the workflow creates a draft prerelease rather than a stable release.
 
 The workflow runs:
 
@@ -225,14 +231,16 @@ The workflow runs:
 - `bash -n scripts/smoke-ui.sh`
 - SHA256 generation
 
-It then creates a GitHub Release and attaches:
+For a valid public tag, it then creates a stable GitHub Release and attaches:
 
 - `dm-annotate-VERSION-macos.zip`
 - `dm-annotate-VERSION-macos.zip.sha256`
 
+A manual signed dry run stops after the short-lived workflow artifact. A preview creates no GitHub Release unless `publish_preview` is explicitly selected; published previews are draft prereleases with run-specific preview tags.
+
 ## Release signing status
 
-The `BradGroux/dm-annotate` release workflow is configured with the complete Developer ID and App Store Connect secret set. Tagged releases publish Developer ID signed, notarized, stapled release zips and validate Gatekeeper acceptance. Forks or local clones without Apple release secrets fall back to ad-hoc signed developer previews.
+The `BradGroux/dm-annotate` release workflow is configured with the complete Developer ID and App Store Connect secret set. Authorized tagged releases publish Developer ID signed, notarized, stapled release zips and validate Gatekeeper acceptance. Forks or local clones without Apple release secrets must use the explicit manual preview mode; tag-triggered public releases fail closed.
 
 Required Developer ID signing secrets:
 

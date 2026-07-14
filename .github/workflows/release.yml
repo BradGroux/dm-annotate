@@ -5,6 +5,20 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Build a signed dry run or an ad-hoc preview
+        required: true
+        default: signed-dry-run
+        type: choice
+        options:
+          - signed-dry-run
+          - preview
+      publish_preview:
+        description: Publish the preview as a draft prerelease
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -15,10 +29,13 @@ jobs:
     runs-on: macos-15
     outputs:
       version: ${{ steps.version.outputs.version }}
+      mode: ${{ steps.version.outputs.mode }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Read version
         id: version
@@ -27,13 +44,36 @@ jobs:
           build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Packaging/Info.plist)"
           tag="${GITHUB_REF_NAME#v}"
 
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${version}" != "${tag}" ]]; then
-            echo "Info.plist version ${version} does not match tag ${GITHUB_REF_NAME}." >&2
-            exit 1
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Release tags must use the exact vMAJOR.MINOR.PATCH format." >&2
+              exit 1
+            fi
+            if [[ "${version}" != "${tag}" ]]; then
+              echo "Info.plist version ${version} does not match tag ${GITHUB_REF_NAME}." >&2
+              exit 1
+            fi
+            mode="release"
+          else
+            mode="${{ inputs.mode }}"
+            if [[ "${mode}" == "signed-dry-run" && "${{ inputs.publish_preview }}" == "true" ]]; then
+              echo "Signed dry runs cannot publish preview releases." >&2
+              exit 1
+            fi
           fi
 
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "build=${build}" >> "${GITHUB_OUTPUT}"
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate release provenance
+        if: steps.version.outputs.mode == 'release'
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "Release tag ${GITHUB_REF_NAME} does not point to a commit reachable from origin/main." >&2
+            exit 1
+          fi
 
       - name: Show Swift version
         run: swift --version
@@ -51,123 +91,23 @@ jobs:
           bash -n scripts/package-release.sh
           bash -n scripts/verify-release-zip.sh
           bash -n scripts/smoke-ui.sh
+          bash -n scripts/validate-release-config.sh
+          bash -n scripts/test-release-config.sh
+          scripts/test-release-config.sh
 
       - name: Validate signing configuration
         id: signing
         env:
-          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
-          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-          APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
-          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
-          APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
-          APPLE_NOTARIZATION_PRIVATE_KEY: ${{ secrets.APPLE_NOTARIZATION_PRIVATE_KEY }}
-          APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
-          APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
-        run: |
-          cert_names=(
-            APPLE_DEVELOPER_ID_CERTIFICATE_BASE64
-            APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
-            APPLE_DEVELOPER_IDENTITY
-          )
-          apple_id_notary_names=(
-            APPLE_NOTARIZATION_APPLE_ID
-            APPLE_NOTARIZATION_PASSWORD
-            APPLE_NOTARIZATION_TEAM_ID
-          )
-          api_key_notary_names=(
-            APPLE_NOTARIZATION_KEY_ID
-            APPLE_NOTARIZATION_PRIVATE_KEY
-          )
-
-          cert_present="false"
-          notary_present="false"
-          notary_method="none"
-          cert_missing=()
-          apple_id_notary_present="false"
-          apple_id_notary_missing=()
-          api_key_notary_present="false"
-          api_key_notary_missing=()
-
-          for name in "${cert_names[@]}"; do
-            if [[ -n "${!name:-}" ]]; then
-              cert_present="true"
-            else
-              cert_missing+=("${name}")
-            fi
-          done
-
-          for name in "${apple_id_notary_names[@]}"; do
-            if [[ -n "${!name:-}" ]]; then
-              apple_id_notary_present="true"
-            else
-              apple_id_notary_missing+=("${name}")
-            fi
-          done
-
-          for name in "${api_key_notary_names[@]}"; do
-            if [[ -n "${!name:-}" ]]; then
-              api_key_notary_present="true"
-            else
-              api_key_notary_missing+=("${name}")
-            fi
-          done
-          if [[ -n "${APPLE_NOTARIZATION_ISSUER_ID:-}" ]]; then
-            api_key_notary_present="true"
-          fi
-
-          if [[ "${cert_present}" == "true" && "${#cert_missing[@]}" -gt 0 ]]; then
-            printf 'Developer ID signing secrets are partially configured. Missing:\n' >&2
-            printf -- '- %s\n' "${cert_missing[@]}" >&2
-            exit 1
-          fi
-
-          if [[ "${apple_id_notary_present}" == "true" && "${#apple_id_notary_missing[@]}" -gt 0 ]]; then
-            printf 'Apple ID notarization secrets are partially configured. Missing:\n' >&2
-            printf -- '- %s\n' "${apple_id_notary_missing[@]}" >&2
-            exit 1
-          fi
-
-          if [[ "${api_key_notary_present}" == "true" && "${#api_key_notary_missing[@]}" -gt 0 ]]; then
-            printf 'App Store Connect API key notarization secrets are partially configured. Missing:\n' >&2
-            printf -- '- %s\n' "${api_key_notary_missing[@]}" >&2
-            exit 1
-          fi
-
-          if [[ "${apple_id_notary_present}" == "true" && "${api_key_notary_present}" == "true" ]]; then
-            echo "Configure either Apple ID notarization secrets or App Store Connect API key notarization secrets, not both." >&2
-            exit 1
-          fi
-
-          if [[ "${apple_id_notary_present}" == "true" ]]; then
-            notary_present="true"
-            notary_method="apple-id"
-          elif [[ "${api_key_notary_present}" == "true" ]]; then
-            notary_present="true"
-            notary_method="api-key"
-          fi
-
-          if [[ "${cert_present}" == "true" && "${notary_present}" != "true" ]]; then
-            echo "Developer ID release signing requires notarization secrets too." >&2
-            exit 1
-          fi
-
-          if [[ "${notary_present}" == "true" && "${cert_present}" != "true" ]]; then
-            echo "Notarization requires Developer ID signing secrets too." >&2
-            exit 1
-          fi
-
-          if [[ "${cert_present}" == "true" && "${notary_present}" == "true" ]]; then
-            echo "notarize=true" >> "${GITHUB_OUTPUT}"
-            echo "notary_method=${notary_method}" >> "${GITHUB_OUTPUT}"
-          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "Manual release dry runs require complete Developer ID signing and notarization secrets." >&2
-            exit 1
-          else
-            echo "notarize=false" >> "${GITHUB_OUTPUT}"
-            echo "notary_method=none" >> "${GITHUB_OUTPUT}"
-            echo "No Apple release secrets are configured. Publishing an ad-hoc signed developer preview." >&2
-          fi
+          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 || '' }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD || '' }}
+          APPLE_DEVELOPER_IDENTITY: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_DEVELOPER_IDENTITY || '' }}
+          APPLE_NOTARIZATION_APPLE_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_APPLE_ID || '' }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_KEY_ID || '' }}
+          APPLE_NOTARIZATION_PASSWORD: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_PASSWORD || '' }}
+          APPLE_NOTARIZATION_PRIVATE_KEY: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_PRIVATE_KEY || '' }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_ISSUER_ID || '' }}
+          APPLE_NOTARIZATION_TEAM_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_TEAM_ID || '' }}
+        run: scripts/validate-release-config.sh "${{ steps.version.outputs.mode }}"
 
       - name: Import Developer ID certificate
         if: steps.signing.outputs.notarize == 'true'
@@ -210,13 +150,13 @@ jobs:
       - name: Package app
         id: package
         env:
-          CODESIGN_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
-          NOTARIZE_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          CODESIGN_IDENTITY: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_DEVELOPER_IDENTITY || '' }}
+          NOTARIZE_APPLE_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_APPLE_ID || '' }}
+          NOTARIZE_KEY_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_KEY_ID || '' }}
           NOTARIZE_KEY_PATH: ${{ steps.notary_key.outputs.key_path }}
-          NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
-          NOTARIZE_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
-          NOTARIZE_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+          NOTARIZE_PASSWORD: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_PASSWORD || '' }}
+          NOTARIZE_ISSUER_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_ISSUER_ID || '' }}
+          NOTARIZE_TEAM_ID: ${{ steps.version.outputs.mode != 'preview' && secrets.APPLE_NOTARIZATION_TEAM_ID || '' }}
         run: |
           if [[ "${{ steps.signing.outputs.notarize }}" == "true" ]]; then
             export REQUIRE_NOTARIZATION=1
@@ -246,11 +186,15 @@ jobs:
 
       - name: Write release notes
         run: |
-          cat > .build/release-notes.md <<'EOF'
-          ## dm-annotate ${{ steps.version.outputs.version }}
-
-          Public release of Digital Meld Annotate, a native, local-only macOS screen annotation tool.
-
+          if [[ "${{ steps.version.outputs.mode }}" == "preview" ]]; then
+            release_heading="Ad-hoc preview"
+          else
+            release_heading="Public release"
+          fi
+          {
+            printf '## dm-annotate %s\n\n%s of Digital Meld Annotate, a native, local-only macOS screen annotation tool.\n\n' \
+              '${{ steps.version.outputs.version }}' "${release_heading}"
+            cat <<'EOF'
           ### Install
 
           1. Download `dm-annotate-${{ steps.version.outputs.version }}-macos.zip`.
@@ -273,6 +217,7 @@ jobs:
 
           ${{ steps.package.outputs.signing_status }}
           EOF
+          } > .build/release-notes.md
 
       - name: Stage release artifacts
         run: |
@@ -293,7 +238,9 @@ jobs:
   publish-release:
     name: Publish release
     needs: build-release
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'preview' && inputs.publish_preview)
     runs-on: macos-15
     permissions:
       contents: write
@@ -317,9 +264,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ needs.build-release.outputs.version }}"
-          gh release create "${GITHUB_REF_NAME}" \
-            "release-artifacts/dm-annotate-${version}-macos.zip" \
-            "release-artifacts/dm-annotate-${version}-macos.zip.sha256" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "dm-annotate ${version}" \
+          if [[ "${{ needs.build-release.outputs.mode }}" == "preview" ]]; then
+            release_tag="preview-${version}-run-${GITHUB_RUN_ID}"
+            release_title="dm-annotate ${version} preview"
+            release_flags=(--draft --prerelease --target "${GITHUB_SHA}")
+          else
+            release_tag="${GITHUB_REF_NAME}"
+            release_title="dm-annotate ${version}"
+            release_flags=()
+          fi
+
+          release_args=(
+            "release-artifacts/dm-annotate-${version}-macos.zip"
+            "release-artifacts/dm-annotate-${version}-macos.zip.sha256"
+            --repo "${GITHUB_REPOSITORY}"
+            --title "${release_title}"
             --notes-file release-artifacts/release-notes.md
+          )
+          release_args+=("${release_flags[@]}")
+          gh release create "${release_tag}" "${release_args[@]}"
