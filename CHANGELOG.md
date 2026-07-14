@@ -20,6 +20,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 - Publish portable SHA256 sidecars that standard verification tools can validate from any download directory.
 - Validate annotation sessions before atomic export, preserve existing files on failed saves, and bound live stroke points so saved sessions always remain reloadable.
 - Report Input Monitoring through the supported listen-event APIs, request it only from an explicit action, and rebuild global shortcut monitoring after app activation.
+- Name shortcut recovery consistently as Restart Shortcut Monitoring without implying that a permission or shortcut test occurred.
 
 ## 0.1.12 - 2026-05-31
 

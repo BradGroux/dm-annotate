@@ -68,6 +68,8 @@ The onboarding window shows current permission status, links to the relevant Sys
 
 Consumable global shortcuts use a native macOS event tap so app shortcuts do not leak into the foreground app. If macOS denies that event tap, `dm-annotate` disables global shortcut dispatch and reports the failure in Diagnostics; grant Accessibility, confirm Input Monitoring, and restart shortcuts.
 
+**Restart Shortcut Monitoring** in Settings and Diagnostics stops and restarts the local and global shortcut monitors. It does not test a shortcut or imply that macOS permissions were granted.
+
 ## Toolbar
 
 The floating toolbar supports:
