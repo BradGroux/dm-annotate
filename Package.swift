@@ -20,6 +20,10 @@ let package = Package(
         .testTarget(
             name: "DMAnnotateCoreTests",
             dependencies: ["DMAnnotateCore"]
+        ),
+        .testTarget(
+            name: "DMAnnotateTests",
+            dependencies: ["DMAnnotate"]
         )
     ]
 )
