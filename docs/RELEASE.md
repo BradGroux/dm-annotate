@@ -119,7 +119,7 @@ REQUIRE_NOTARIZATION=1 scripts/verify-release-zip.sh
 scripts/smoke-ui.sh
 ```
 
-The UI smoke command builds a release app bundle when no app path is provided, starts the executable in controlled smoke mode, verifies the toolbar, settings, permissions, and command palette windows can appear, exercises toolbar layout states, checks command palette action generation for session and screenshot workflows, validates toolbar preset preference round-tripping, prints a short diagnostic summary, and exits. It does not test screenshot capture because that depends on local macOS Screen Recording consent.
+The UI smoke command builds a release app bundle when no app path is provided, starts the executable in controlled smoke mode, verifies the toolbar, settings, permissions, command palette, and screenshot feedback windows can appear, exercises toolbar layout states, checks command palette action generation for session and screenshot workflows, validates toolbar preset preference round-tripping, verifies screenshot feedback is capture-excluded and non-animated, prints a short diagnostic summary, and exits. It does not test screenshot capture because that depends on local macOS Screen Recording consent.
 
 ## Sign
 

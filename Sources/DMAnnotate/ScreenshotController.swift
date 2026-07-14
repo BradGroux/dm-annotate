@@ -15,11 +15,18 @@ final class ScreenshotController {
     private var captureChromeHider: CaptureChromeHider?
     private let pasteboardWriter = ScreenshotPasteboardWriter(pasteboard: .general)
     private let outputProcessor = ScreenshotPNGOutputProcessor()
+    private let feedbackCoordinator: ScreenshotFeedbackCoordinator
 
-    init(store: AnnotationStore, preferences: PreferencesController, overlayController: OverlayController) {
+    init(
+        store: AnnotationStore,
+        preferences: PreferencesController,
+        overlayController: OverlayController,
+        feedbackPresenter: any ScreenshotFeedbackPresenting = ScreenshotFeedbackPresenter()
+    ) {
         self.store = store
         self.preferences = preferences
         self.overlayController = overlayController
+        feedbackCoordinator = ScreenshotFeedbackCoordinator(presenter: feedbackPresenter)
     }
 
     func setCaptureChromeHider(_ hider: @escaping CaptureChromeHider) {
@@ -27,24 +34,33 @@ final class ScreenshotController {
     }
 
     func captureFullDisplay(destination: ScreenshotDestination = .preferred, renderMode: ScreenshotRenderMode = .flattened) {
+        let feedbackSession = feedbackCoordinator.beginSession()
         guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else {
-            showError("No display is available for capture.")
+            feedbackCoordinator.present(.captureFailure, for: feedbackSession, placement: nil)
             return
         }
 
-        capture(screen: screen, region: nil, destination: destination, renderMode: renderMode)
+        capture(
+            screen: screen,
+            region: nil,
+            destination: destination,
+            renderMode: renderMode,
+            feedbackSession: feedbackSession
+        )
     }
 
     func captureRegion(destination: ScreenshotDestination = .preferred, renderMode: ScreenshotRenderMode = .flattened) {
-        guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else {
-            showError("No display is available for capture.")
-            return
-        }
-
         if let regionSelectionWindow, regionSelectionWindow.isVisible {
+            feedbackCoordinator.prepareForCapture()
             regionSelectionWindow.makeKeyAndOrderFront(nil)
             regionSelectionWindow.makeFirstResponder(regionSelectionWindow.contentView)
             NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let feedbackSession = feedbackCoordinator.beginSession()
+        guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else {
+            feedbackCoordinator.present(.captureFailure, for: feedbackSession, placement: nil)
             return
         }
 
@@ -53,7 +69,13 @@ final class ScreenshotController {
         let window = RegionSelectionWindow(screen: screen) { [weak self] region in
             self?.regionSelectionWindow = nil
             guard let region, !region.isEmpty else { return }
-            self?.capture(screen: screen, region: region, destination: destination, renderMode: renderMode)
+            self?.capture(
+                screen: screen,
+                region: region,
+                destination: destination,
+                renderMode: renderMode,
+                feedbackSession: feedbackSession
+            )
         }
 
         regionSelectionWindow = window
@@ -71,7 +93,15 @@ final class ScreenshotController {
         NSWorkspace.shared.activateFileViewerSelecting([preferences.expandedScreenshotFolderURL()])
     }
 
-    private func capture(screen: NSScreen, region: CGRect?, destination: ScreenshotDestination, renderMode: ScreenshotRenderMode) {
+    private func capture(
+        screen: NSScreen,
+        region: CGRect?,
+        destination: ScreenshotDestination,
+        renderMode: ScreenshotRenderMode,
+        feedbackSession: ScreenshotFeedbackSession
+    ) {
+        feedbackCoordinator.prepareForCapture()
+        let feedbackPlacement = ScreenshotFeedbackPlacement(visibleFrame: screen.visibleFrame)
         let captureWork = { [self] in
             overlayController.temporarilyHideForCapture {
                 composedImage(screen: screen, region: region, renderMode: renderMode)
@@ -80,7 +110,7 @@ final class ScreenshotController {
         let image = captureChromeHider?(captureWork) ?? captureWork()
 
         guard let image else {
-            showError("Screenshot failed. Grant Screen Recording permission in System Settings and try again.")
+            feedbackCoordinator.present(.captureFailure, for: feedbackSession, placement: feedbackPlacement)
             return
         }
 
@@ -91,12 +121,18 @@ final class ScreenshotController {
                     guard let self else { return }
                     let data = try await outputProcessor.encode(image)
                     try pasteboardWriter.write(data)
+                    feedbackCoordinator.present(.clipboardSuccess, for: feedbackSession, placement: feedbackPlacement)
                 } catch {
-                    self?.showError("Screenshot copy failed: \(error.localizedDescription)")
+                    self?.feedbackCoordinator.present(.clipboardFailure, for: feedbackSession, placement: feedbackPlacement)
                 }
             }
         case .file:
-            save(image, renderMode: renderMode)
+            save(
+                image,
+                renderMode: renderMode,
+                feedbackSession: feedbackSession,
+                feedbackPlacement: feedbackPlacement
+            )
         }
     }
 
@@ -277,7 +313,12 @@ final class ScreenshotController {
             .forEach { AnnotationRenderer.draw($0) }
     }
 
-    private func save(_ image: CGImage, renderMode: ScreenshotRenderMode) {
+    private func save(
+        _ image: CGImage,
+        renderMode: ScreenshotRenderMode,
+        feedbackSession: ScreenshotFeedbackSession,
+        feedbackPlacement: ScreenshotFeedbackPlacement
+    ) {
         let folder = preferences.expandedScreenshotFolderURL()
         let file: URL
 
@@ -286,7 +327,7 @@ final class ScreenshotController {
         } catch ScreenshotError.cancelled {
             return
         } catch {
-            showError("Screenshot save failed: \(error.localizedDescription)")
+            feedbackCoordinator.present(.fileFailure, for: feedbackSession, placement: feedbackPlacement)
             return
         }
 
@@ -298,12 +339,13 @@ final class ScreenshotController {
             do {
                 try await outputProcessor.write(image, to: file)
                 lastSavedScreenshotURL = file
+                feedbackCoordinator.present(.fileSuccess(file), for: feedbackSession, placement: feedbackPlacement)
 
                 if revealAfterSave {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
             } catch {
-                showError("Screenshot save failed: \(error.localizedDescription)")
+                feedbackCoordinator.present(.fileFailure, for: feedbackSession, placement: feedbackPlacement)
             }
         }
     }
@@ -337,15 +379,6 @@ final class ScreenshotController {
         case .annotationsOnly:
             return "annotations"
         }
-    }
-
-    private func showError(_ message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Digital Meld Annotate"
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
     }
 }
 
