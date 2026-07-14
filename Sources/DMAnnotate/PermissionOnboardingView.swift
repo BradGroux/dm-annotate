@@ -136,14 +136,22 @@ private struct PermissionCard: View {
 final class PermissionOnboardingViewModel: ObservableObject {
     @Published private(set) var items: [PermissionItem] = []
     @Published private(set) var nextStep = ""
+    private let permissions: PermissionClient
+    private let openSettings: (SystemSettings) -> Void
 
-    init() {
+    init(
+        permissions: PermissionClient = .live,
+        openSettings: @escaping (SystemSettings) -> Void = SystemSettings.open
+    ) {
+        self.permissions = permissions
+        self.openSettings = openSettings
         refresh()
     }
 
     func refresh() {
-        let screenRecordingStatus = PermissionChecks.screenRecordingStatus()
-        let accessibilityStatus = PermissionChecks.accessibilityStatus()
+        let screenRecordingStatus = permissions.screenRecordingStatus()
+        let accessibilityStatus = permissions.accessibilityStatus()
+        let inputMonitoringStatus = permissions.inputMonitoringStatus()
 
         items = [
             PermissionItem(
@@ -166,39 +174,55 @@ final class PermissionOnboardingViewModel: ObservableObject {
                 kind: .inputMonitoring,
                 title: "Input Monitoring",
                 reason: "May be required by macOS for global keyboard shortcuts, depending on OS version and security settings.",
-                detail: "macOS does not provide a reliable public status check for this permission. If Diagnostics reports Global shortcuts as unavailable, verify this permission in System Settings.",
-                status: .unknown,
-                buttonTitle: "Open Settings"
+                detail: "Digital Meld Annotate checks this with the supported listen-event API. Access is requested only when you choose Grant Access.",
+                status: inputMonitoringStatus,
+                buttonTitle: inputMonitoringStatus == .granted ? "Open Settings" : "Grant Access"
             )
         ]
-        nextStep = Self.nextStep(screenRecording: screenRecordingStatus, accessibility: accessibilityStatus)
+        nextStep = Self.nextStep(
+            screenRecording: screenRecordingStatus,
+            accessibility: accessibilityStatus,
+            inputMonitoring: inputMonitoringStatus
+        )
     }
 
     func requestOrOpen(_ kind: PermissionKind) {
         switch kind {
         case .screenRecording:
-            if PermissionChecks.screenRecordingStatus() != .granted {
-                _ = CGRequestScreenCaptureAccess()
+            if permissions.screenRecordingStatus() != .granted {
+                permissions.requestScreenRecording()
             }
-            SystemSettings.open(.screenRecording)
+            openSettings(.screenRecording)
         case .accessibility:
-            PermissionChecks.requestAccessibilityPrompt()
-            SystemSettings.open(.accessibility)
+            if permissions.accessibilityStatus() != .granted {
+                permissions.requestAccessibility()
+            }
+            openSettings(.accessibility)
         case .inputMonitoring:
-            SystemSettings.open(.inputMonitoring)
+            if permissions.inputMonitoringStatus() != .granted {
+                permissions.requestInputMonitoring()
+            }
+            openSettings(.inputMonitoring)
         }
 
         refresh()
     }
 
-    private static func nextStep(screenRecording: PermissionStatus, accessibility: PermissionStatus) -> String {
+    private static func nextStep(
+        screenRecording: PermissionStatus,
+        accessibility: PermissionStatus,
+        inputMonitoring: PermissionStatus
+    ) -> String {
         if screenRecording != .granted {
             return "Next: grant Screen Recording in System Settings, then return to this window."
         }
         if accessibility != .granted {
             return "Next: grant Accessibility in System Settings, then return to this window."
         }
-        return "Required permissions are ready. If Diagnostics reports Global shortcuts as unavailable, confirm Input Monitoring in System Settings and restart shortcuts."
+        if inputMonitoring != .granted {
+            return "Input Monitoring is not granted. If global shortcuts are unavailable, choose Grant Access, then return so shortcut monitoring can restart."
+        }
+        return "Required permissions are ready. If Diagnostics reports Global shortcuts as unavailable, restart shortcuts."
     }
 }
 
@@ -268,6 +292,25 @@ struct PermissionSummary: Equatable {
     }
 }
 
+@MainActor
+struct PermissionClient {
+    var screenRecordingStatus: () -> PermissionStatus
+    var accessibilityStatus: () -> PermissionStatus
+    var inputMonitoringStatus: () -> PermissionStatus
+    var requestScreenRecording: () -> Void
+    var requestAccessibility: () -> Void
+    var requestInputMonitoring: () -> Void
+
+    static let live = PermissionClient(
+        screenRecordingStatus: PermissionChecks.screenRecordingStatus,
+        accessibilityStatus: PermissionChecks.accessibilityStatus,
+        inputMonitoringStatus: PermissionChecks.inputMonitoringStatus,
+        requestScreenRecording: PermissionChecks.requestScreenRecording,
+        requestAccessibility: PermissionChecks.requestAccessibilityPrompt,
+        requestInputMonitoring: PermissionChecks.requestInputMonitoring
+    )
+}
+
 enum PermissionChecks {
     static func screenRecordingStatus() -> PermissionStatus {
         CGPreflightScreenCaptureAccess() ? .granted : .notGranted
@@ -277,9 +320,21 @@ enum PermissionChecks {
         AXIsProcessTrusted() ? .granted : .notGranted
     }
 
+    static func inputMonitoringStatus() -> PermissionStatus {
+        CGPreflightListenEventAccess() ? .granted : .notGranted
+    }
+
+    static func requestScreenRecording() {
+        _ = CGRequestScreenCaptureAccess()
+    }
+
     static func requestAccessibilityPrompt() {
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
+    }
+
+    static func requestInputMonitoring() {
+        _ = CGRequestListenEventAccess()
     }
 }
 

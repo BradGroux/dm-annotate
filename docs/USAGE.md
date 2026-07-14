@@ -62,9 +62,9 @@ macOS may require:
 
 - Screen Recording: needed for screenshots that include underlying screen content.
 - Accessibility: needed for global shortcut reliability and interaction recovery.
-- Input Monitoring: may be needed by macOS for global keyboard handling.
+- Input Monitoring: may be needed by macOS for global keyboard handling. The app reports the listen-event permission state and requests it only when you choose **Grant Access**.
 
-The onboarding window shows current permission status, links to the relevant System Settings panes, and refreshes when the app becomes active again after you return from System Settings. Reopen it from **Permissions...** in the app menu or menu bar item.
+The onboarding window shows current permission status, links to the relevant System Settings panes, and refreshes when the app becomes active again after you return from System Settings. Global shortcut monitoring is rebuilt on activation so a newly granted Input Monitoring permission takes effect. Reopen onboarding from **Permissions...** in the app menu or menu bar item.
 
 Consumable global shortcuts use a native macOS event tap so app shortcuts do not leak into the foreground app. If macOS denies that event tap, `dm-annotate` disables global shortcut dispatch and reports the failure in Diagnostics; grant Accessibility, confirm Input Monitoring, and restart shortcuts.
 
