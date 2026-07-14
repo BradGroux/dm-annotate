@@ -32,6 +32,9 @@ jobs:
           plutil -lint Packaging/Info.plist
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
+          bash -n scripts/generate-release-checksum.sh
+          bash -n scripts/verify-release-checksum.sh
+          bash -n scripts/test-release-checksum.sh
           bash -n scripts/test-release-architectures.sh
           bash -n scripts/verify-release-zip.sh
           bash -n scripts/verify-executable-architectures.sh
@@ -40,6 +43,7 @@ jobs:
           bash -n scripts/test-release-config.sh
           scripts/test-release-config.sh
           scripts/test-release-architectures.sh
+          scripts/test-release-checksum.sh
           zip_path="$(scripts/verify-release-zip.sh)"
-          shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
-          test -s "${zip_path}.sha256"
+          sha_path="$(scripts/generate-release-checksum.sh "${zip_path}")"
+          scripts/verify-release-checksum.sh "${zip_path}" "${sha_path}"

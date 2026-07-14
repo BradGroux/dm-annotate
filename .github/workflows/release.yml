@@ -89,6 +89,9 @@ jobs:
           plutil -lint Packaging/Info.plist
           bash -n scripts/build-app.sh
           bash -n scripts/package-release.sh
+          bash -n scripts/generate-release-checksum.sh
+          bash -n scripts/verify-release-checksum.sh
+          bash -n scripts/test-release-checksum.sh
           bash -n scripts/test-release-architectures.sh
           bash -n scripts/verify-release-zip.sh
           bash -n scripts/verify-executable-architectures.sh
@@ -97,6 +100,7 @@ jobs:
           bash -n scripts/test-release-config.sh
           scripts/test-release-config.sh
           scripts/test-release-architectures.sh
+          scripts/test-release-checksum.sh
 
       - name: Validate signing configuration
         id: signing
@@ -166,7 +170,8 @@ jobs:
           fi
 
           zip_path="$(scripts/verify-release-zip.sh)"
-          shasum -a 256 "${zip_path}" | tee "${zip_path}.sha256"
+          sha_path="$(scripts/generate-release-checksum.sh "${zip_path}")"
+          scripts/verify-release-checksum.sh "${zip_path}" "${sha_path}"
           if [[ "${{ steps.signing.outputs.notarize }}" == "true" ]]; then
             signing_status="Developer ID signed, notarized, stapled, and accepted by Gatekeeper."
           else
@@ -175,7 +180,7 @@ jobs:
 
           {
             echo "zip_path=${zip_path}"
-            echo "sha_path=${zip_path}.sha256"
+            echo "sha_path=${sha_path}"
             echo "signing_status=${signing_status}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -215,7 +220,12 @@ jobs:
           - packaging script syntax checks
           - release zip install and launch smoke verification
           - universal executable verification (`arm64` and `x86_64`)
-          - release zip SHA256 generation
+          - portable release zip SHA256 generation and verification
+
+          Verify the downloaded assets from the directory containing them:
+
+          - macOS: `shasum -a 256 -c dm-annotate-${{ steps.version.outputs.version }}-macos.zip.sha256`
+          - Linux: `sha256sum -c dm-annotate-${{ steps.version.outputs.version }}-macos.zip.sha256`
 
           ### Signing status
 
@@ -230,6 +240,9 @@ jobs:
           cp "${{ steps.package.outputs.zip_path }}" "${artifact_dir}/"
           cp "${{ steps.package.outputs.sha_path }}" "${artifact_dir}/"
           cp .build/release-notes.md "${artifact_dir}/"
+          scripts/verify-release-checksum.sh \
+            "${artifact_dir}/dm-annotate-${{ steps.version.outputs.version }}-macos.zip" \
+            "${artifact_dir}/dm-annotate-${{ steps.version.outputs.version }}-macos.zip.sha256"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -262,6 +275,15 @@ jobs:
           test -s "release-artifacts/dm-annotate-${version}-macos.zip"
           test -s "release-artifacts/dm-annotate-${version}-macos.zip.sha256"
           test -s release-artifacts/release-notes.md
+          expected_entry="dm-annotate-${version}-macos.zip"
+          sidecar="release-artifacts/${expected_entry}.sha256"
+          test "$(wc -l < "${sidecar}" | tr -d '[:space:]')" = "1"
+          grep -Eq '^[0-9a-f]{64}  [^/]+$' "${sidecar}"
+          test "$(sed -E 's/^[0-9a-f]{64}  //' "${sidecar}")" = "${expected_entry}"
+          (
+            cd release-artifacts
+            shasum -a 256 -c "${expected_entry}.sha256"
+          )
 
       - name: Create GitHub release
         env:

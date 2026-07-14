@@ -34,15 +34,19 @@ swift test
 plutil -lint Packaging/Info.plist
 bash -n scripts/build-app.sh
 bash -n scripts/package-release.sh
+bash -n scripts/generate-release-checksum.sh
+bash -n scripts/verify-release-checksum.sh
+bash -n scripts/test-release-checksum.sh
 bash -n scripts/test-release-architectures.sh
 bash -n scripts/verify-release-zip.sh
 bash -n scripts/verify-executable-architectures.sh
 bash -n scripts/smoke-ui.sh
 scripts/test-release-config.sh
 scripts/test-release-architectures.sh
+scripts/test-release-checksum.sh
 zip_path="$(scripts/verify-release-zip.sh)"
-shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
-test -s "${zip_path}.sha256"
+sha_path="$(scripts/generate-release-checksum.sh "${zip_path}")"
+scripts/verify-release-checksum.sh "${zip_path}" "${sha_path}"
 ```
 
 ## Build an app bundle
@@ -86,6 +90,22 @@ Output:
 ```
 
 The verifier packages the app when no zip path is provided, unpacks the archive into a temporary directory, checks bundle metadata against `Packaging/Info.plist`, requires exactly the `arm64` and `x86_64` executable slices, verifies the code signature, and runs the app executable in launch-verification mode without starting the overlay UI or requesting macOS permissions. On Apple silicon it launches both slices, using Rosetta for the Intel check; on Intel it launches the native `x86_64` slice.
+
+## Verify a downloaded checksum
+
+Download the release zip and its `.sha256` sidecar into the same directory, then run on macOS:
+
+```sh
+shasum -a 256 -c dm-annotate-VERSION-macos.zip.sha256
+```
+
+Or on Linux:
+
+```sh
+sha256sum -c dm-annotate-VERSION-macos.zip.sha256
+```
+
+The sidecar references only the zip basename, so these standard commands work from any download directory. Release automation generates the sidecar from inside the artifact directory and verifies the copied artifact again before upload.
 
 Require notarization checks when validating a signed release artifact:
 
@@ -235,7 +255,7 @@ The workflow runs:
 - `scripts/package-release.sh`
 - `scripts/verify-release-zip.sh`
 - `bash -n scripts/smoke-ui.sh`
-- SHA256 generation
+- portable SHA256 generation and verification
 
 For a valid public tag, it then creates a stable GitHub Release and attaches:
 

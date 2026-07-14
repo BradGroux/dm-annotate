@@ -157,6 +157,16 @@ Verify the generated zip and packaged app bundle:
 scripts/verify-release-zip.sh
 ```
 
+Release downloads include a portable SHA256 sidecar. With both files in the same directory, verify the zip with:
+
+```sh
+# macOS
+shasum -a 256 -c dm-annotate-VERSION-macos.zip.sha256
+
+# Linux
+sha256sum -c dm-annotate-VERSION-macos.zip.sha256
+```
+
 Run a local UI smoke check:
 
 ```sh
