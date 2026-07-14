@@ -12,6 +12,8 @@ final class ScreenshotController {
     private var regionSelectionWindow: RegionSelectionWindow?
     private var lastSavedScreenshotURL: URL?
     private var captureChromeHider: CaptureChromeHider?
+    private let pngEncoder = ScreenshotPNGEncoder()
+    private let pasteboardWriter = ScreenshotPasteboardWriter(pasteboard: .general)
 
     init(store: AnnotationStore, preferences: PreferencesController, overlayController: OverlayController) {
         self.store = store
@@ -83,8 +85,12 @@ final class ScreenshotController {
 
         switch resolvedOutput(for: destination) {
         case .clipboard:
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects([image])
+            do {
+                let data = try pngEncoder.encode(image)
+                try pasteboardWriter.write(data)
+            } catch {
+                showError("Screenshot copy failed: \(error.localizedDescription)")
+            }
         case .file:
             save(image, renderMode: renderMode)
         }
@@ -252,10 +258,7 @@ final class ScreenshotController {
 
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            guard let data = pngData(for: image) else {
-                showError("Screenshot failed because the PNG encoder returned no data.")
-                return
-            }
+            let data = try pngEncoder.encode(image)
 
             let file = try destinationFile(in: folder, renderMode: renderMode)
             try data.write(to: file, options: .atomic)
@@ -298,15 +301,6 @@ final class ScreenshotController {
         case .annotationsOnly:
             return "annotations"
         }
-    }
-
-    private func pngData(for image: NSImage) -> Data? {
-        guard let tiff = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiff) else {
-            return nil
-        }
-
-        return bitmap.representation(using: .png, properties: [:])
     }
 
     private func showError(_ message: String) {
