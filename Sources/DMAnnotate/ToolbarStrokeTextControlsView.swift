@@ -9,6 +9,7 @@ struct ToolbarStrokeTextControlsView: View {
     @State private var isTextStylePopoverPresented = false
     @State private var customStrokeWidthText = ""
     @State private var customTextFontSizeText = ""
+    @Environment(\.toolbarAccessibilityState) private var accessibilityState
 
     private var valueColumns: [GridItem] {
         Array(
@@ -49,7 +50,12 @@ struct ToolbarStrokeTextControlsView: View {
             strokeWidthPopover
         }
         .toolbarHelp(strokeWidthHelp)
-        .accessibilityLabel("Stroke width")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Stroke width",
+            value: accessibilityState.strokeWidthValue,
+            hint: "Choose or enter a stroke width",
+            identifier: "toolbar.stroke-width"
+        ))
     }
 
     private var strokeWidthPopover: some View {
@@ -72,6 +78,13 @@ struct ToolbarStrokeTextControlsView: View {
                     }
                     .buttonStyle(.plain)
                     .toolbarHelp("\(Int(width)) px")
+                    .toolbarAccessibility(accessibilityState.control(
+                        label: "\(Int(width)) pixel stroke width",
+                        value: store.strokeWidth == width ? "Selected" : "Available",
+                        hint: "Use this stroke width",
+                        identifier: "toolbar.stroke-width.\(Int(width))",
+                        isSelected: store.strokeWidth == width
+                    ))
                 }
             }
 
@@ -120,7 +133,12 @@ struct ToolbarStrokeTextControlsView: View {
             textStylePopover
         }
         .toolbarHelp("Text style: \(formattedTextFontSize(store.textFontSize)) px, \(store.textFontWeight.displayName)")
-        .accessibilityLabel("Text style")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Text style",
+            value: accessibilityState.textStyleValue,
+            hint: "Choose the text size, weight, and color",
+            identifier: "toolbar.text-style"
+        ))
     }
 
     private var textStylePopover: some View {
@@ -148,6 +166,13 @@ struct ToolbarStrokeTextControlsView: View {
                         }
                         .buttonStyle(.plain)
                         .toolbarHelp("\(Int(size)) px text")
+                        .toolbarAccessibility(accessibilityState.control(
+                            label: "\(Int(size)) pixel text size",
+                            value: store.textFontSize == size ? "Selected" : "Available",
+                            hint: "Use this text size",
+                            identifier: "toolbar.text-size.\(Int(size))",
+                            isSelected: store.textFontSize == size
+                        ))
                     }
                 }
             }
@@ -195,6 +220,13 @@ struct ToolbarStrokeTextControlsView: View {
                         }
                         .buttonStyle(.plain)
                         .toolbarHelp("Text color \(index + 1)")
+                        .toolbarAccessibility(accessibilityState.control(
+                            label: "Text color \(index + 1)",
+                            value: store.currentColor == color ? "Selected, \(colorName(color))" : colorName(color),
+                            hint: "Use this text color",
+                            identifier: "toolbar.text-color.\(index + 1)",
+                            isSelected: store.currentColor == color
+                        ))
                     }
                 }
 
@@ -281,6 +313,10 @@ struct ToolbarStrokeTextControlsView: View {
     private func contrastColor(for color: RGBAColor) -> Color {
         let luminance = (0.299 * color.red) + (0.587 * color.green) + (0.114 * color.blue)
         return luminance > 0.62 ? .black : .white
+    }
+
+    private func colorName(_ color: RGBAColor) -> String {
+        accessibilityState.colorValue(for: color)
     }
 
     private var strokeWidthHelp: String {

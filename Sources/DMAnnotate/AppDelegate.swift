@@ -376,7 +376,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             failures.append("Command palette window is not visible.")
         }
 
+        prepareToolbarAccessibilityState()
         verifyToolbarLayouts(failures: &failures)
+        verifyToolbarAccessibility(failures: &failures)
         verifyFindToolbarPresentation(failures: &failures)
         verifySafeModeToolbarAvailability(failures: &failures)
         verifyCommandPaletteCommands(commands, failures: &failures)
@@ -389,6 +391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("dm-annotate UI smoke OK")
             print("- core windows visible")
             print("- toolbar layout states rendered")
+            print("- toolbar live accessibility state verified across full, compact, and collapsed layouts")
             print("- Find Toolbar stayed static across rapid invocation")
             print("- Safe Mode full and compact toolbar states rendered")
             print("- command palette actions generated")
@@ -478,14 +481,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             snapshot.toolbarCompactMode = true
         }, failures: &failures)
 
-        preferences.update { snapshot in
-            snapshot.toolbarOrientation = .vertical
-            snapshot.toolbarCollapsed = false
-            snapshot.toolbarCompactMode = false
-        }
-        toolbarWindowController.show()
-        toolbarWindowController.resizeToFit()
+        // The last matrix row is compact. Return to full through the same
+        // controller-owned transition used by the live toolbar.
+        toolbarWindowController.toggleCompactMode()
         settleWindows()
+    }
+
+    private func prepareToolbarAccessibilityState() {
+        runtimeState.configure(isSafeMode: false, recoveredFromAbnormalExit: false)
+        store.exitScreenControls()
+        store.setCurrentColor(.red)
+        store.setStrokeWidth(5)
+        store.setTextFontSize(32)
+        store.setTextFontWeight(.bold)
+        store.annotationsLocked = false
+        store.isVisible = true
     }
 
     private func verifySafeModeToolbarAvailability(failures: inout [String]) {
@@ -528,6 +538,98 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         settleWindows()
     }
 
+    private func verifyToolbarAccessibility(failures: inout [String]) {
+        guard let panel = toolbarWindowController.accessibilityVerificationPanel else {
+            failures.append("Toolbar accessibility smoke could not access the live panel.")
+            return
+        }
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.tool.pen"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.annotations-lock"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.annotations-visibility"))
+
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXScrollAreaRole as String,
+            summaryContains: "Drawing mode; pointer input captured",
+            controls: [
+                .init("toolbar.tool.pen", label: "Pen", helpContains: "Select Pen", valueContains: "Current tool", isSelected: true, isEnabled: true),
+                .init("toolbar.tool.cursor", label: "Cursor", helpContains: "Select Cursor", isSelected: false, isEnabled: true),
+                .init("toolbar.annotations-lock", label: "Annotation lock", helpContains: "Unlock annotations", valueContains: "Locked", isSelected: true),
+                .init("toolbar.annotations-visibility", label: "Annotation visibility", helpContains: "Show annotations", valueContains: "Hidden", isSelected: true),
+                .init("toolbar.color.quick-1", label: "Quick color 1, Red", helpContains: "Use this annotation color", valueContains: "Selected", isSelected: true),
+                .init("toolbar.stroke-width", label: "Stroke width", helpContains: "Choose or enter", valueContains: "5 pixels"),
+                .init("toolbar.text-style", label: "Text style", helpContains: "Choose the text size", valueContains: "32 pixels, Bold")
+            ]
+        ))
+
+        store.whiteboardBackground = .lightGrid
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.tool.whiteboard"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXScrollAreaRole as String,
+            summaryContains: "Board: On, Whiteboard family, Light Grid",
+            controls: [
+                .init("toolbar.tool.whiteboard", label: "Whiteboard", helpContains: "Select Whiteboard", valueContains: "Current board; Light Grid", isSelected: true),
+                .init("toolbar.tool.blackboard", label: "Blackboard", helpContains: "Select Blackboard", isSelected: false)
+            ]
+        ))
+
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.compact-mode"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXGroupRole as String,
+            summaryContains: "Active tool: Whiteboard",
+            controls: [
+                .init("toolbar.tool.cursor", label: "Cursor", helpContains: "Select Cursor", isSelected: false),
+                .init("toolbar.compact.tool", label: "Active annotation tool", role: kAXMenuButtonRole as String, helpContains: "Choose an annotation tool", valueContains: "Whiteboard", isSelected: true, requiredAction: kAXShowMenuAction as String),
+                .init("toolbar.compact.color", label: "Current color", role: kAXMenuButtonRole as String, helpContains: "Choose an annotation color", valueContains: "Red", requiredAction: kAXShowMenuAction as String),
+                .init("toolbar.compact.stroke-width", label: "Stroke width", role: kAXMenuButtonRole as String, helpContains: "Change the stroke width", valueContains: "5 pixels", requiredAction: kAXShowMenuAction as String)
+            ]
+        ))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.compact-mode"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.collapse"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXGroupRole as String,
+            summaryContains: "Board: On, Whiteboard family, Light Grid",
+            controls: [.init("toolbar.expand", label: "Expand toolbar", helpContains: "Show toolbar controls", valueContains: "Drawing mode")]
+        ))
+
+        store.exitScreenControls()
+        runtimeState.configure(isSafeMode: true, recoveredFromAbnormalExit: false)
+        settleWindows()
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXGroupRole as String,
+            summaryContains: "Safe Mode; pointer input passes through",
+            controls: [.init("toolbar.expand", label: "Expand toolbar", helpContains: "Show toolbar controls", valueContains: "Safe Mode")]
+        ))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.expand"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXScrollAreaRole as String,
+            summaryContains: "Safe Mode; pointer input passes through",
+            controls: [
+                .init("toolbar.tool.cursor", label: "Cursor", helpContains: "Select Cursor", isSelected: true, isEnabled: true),
+                .init("toolbar.tool.pen", label: "Pen", helpContains: "Exit Safe Mode", valueContains: "Unavailable in Safe Mode", isSelected: false, isEnabled: false, requiredAction: nil)
+            ]
+        ))
+
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.performPress(panel: panel, identifier: "toolbar.compact-mode"))
+        failures.append(contentsOf: ToolbarAccessibilitySmokeVerifier.verify(
+            panel: panel,
+            rootRole: kAXGroupRole as String,
+            summaryContains: "Safe Mode; pointer input passes through",
+            controls: [
+                .init("toolbar.tool.cursor", label: "Cursor", helpContains: "Select Cursor", isSelected: true, isEnabled: true),
+                .init("toolbar.compact.tool", label: "Active annotation tool", role: kAXMenuButtonRole as String, helpContains: "Exit Safe Mode", valueContains: "Unavailable in Safe Mode", isSelected: false, isEnabled: false, requiredAction: nil)
+            ]
+        ))
+
+        toolbarWindowController.toggleCompactMode()
+        settleWindows()
+    }
+
     private func verifyToolbarLayout(
         _ name: String,
         configure: (inout PreferencesSnapshot) -> Void,
@@ -548,7 +650,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             expectedSize = settledSize
         }
         settleWindows()
-
         guard toolbarWindowController.isVisible else {
             failures.append("Toolbar panel is not visible in \(name) layout.")
             return

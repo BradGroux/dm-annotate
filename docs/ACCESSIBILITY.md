@@ -1,5 +1,15 @@
 # Accessibility Verification
 
+## Toolbar State
+
+The floating toolbar exposes one shared semantic state model in full, compact, and collapsed layouts. The full toolbar root, Compact Presenter button, and collapsed Expand button each provide the complete summary for their layout. That summary names cursor, drawing, or Safe Mode and whether pointer input passes through or is captured. It also names the current tool, the paired Whiteboard/Blackboard family and exact solid or grid background, annotation lock and visibility, color, stroke width, and text style. Collapsing the toolbar therefore hides controls without hiding the state needed to understand what the app will do.
+
+Individual controls expose stable identifiers, current values, enabled state, and selected traits. Safe Mode keeps Cursor selected and available while unavailable drawing controls remain visible to assistive technology as disabled with the value `Unavailable in Safe Mode`. Color swatches include spoken color names, and selected colors, stroke widths, text sizes, tools, boards, lock, and hidden-annotation state do not rely on color alone.
+
+Safety-mode, annotation-lock, and annotation-visibility transitions post one concise final-state announcement after a cancellable 250-millisecond trailing debounce. Rapid reversals replace the pending snapshot, so VoiceOver cannot be left reporting stale cursor, drawing, lock, or visibility state. Concurrent important-state changes are coalesced into one safety, lock, and visibility summary. Switching rapidly among drawing tools, boards, colors, widths, or text styles updates live AX values but does not proactively announce, avoiding VoiceOver chatter during presentation shortcuts and drawing. No toolbar accessibility transition animates.
+
+Focused tests cover the shared summary, paired board semantics, Safe Mode disabled selection, custom-color naming, and the announcement boundary. The packaged UI smoke inspects the live AX tree in normal full, compact, collapsed, board, and Safe Mode states.
+
 ## Adaptive Selected Controls
 
 Selected toolbar controls, settings sidebar rows, stroke widths, and text sizes share `AdaptiveSelectedControlStyle`. The style uses AppKit's semantic selected-control background so the surface follows the current macOS accent and appearance. It selects black or white foreground content from the resolved background using WCAG relative luminance and applies the higher-contrast option. Selection changes are immediate and do not animate because these controls are used frequently and can be changed with keyboard shortcuts.

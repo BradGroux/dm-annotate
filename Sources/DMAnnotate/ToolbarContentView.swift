@@ -9,6 +9,21 @@ struct ToolbarContentView: View {
     var actions: ToolbarActions
     @State private var permissionSummary = PermissionSummary.current()
 
+    private var accessibilityState: ToolbarAccessibilityState {
+        ToolbarAccessibilityState(
+            activeTool: store.activeTool,
+            whiteboardModeEnabled: store.whiteboardModeEnabled,
+            whiteboardBackground: store.whiteboardBackground,
+            annotationsLocked: store.annotationsLocked,
+            annotationsVisible: store.isVisible,
+            currentColor: store.currentColor,
+            strokeWidth: store.strokeWidth,
+            textFontSize: store.textFontSize,
+            textFontWeight: store.textFontWeight,
+            isSafeMode: runtimeState.isSafeMode
+        )
+    }
+
     private var compactColumns: [GridItem] {
         [
             GridItem(.fixed(ToolbarLayoutMetrics.buttonSize), spacing: ToolbarLayoutMetrics.gridSpacing),
@@ -35,7 +50,11 @@ struct ToolbarContentView: View {
                 .stroke(toolbarStrokeColor, lineWidth: store.isControllingScreen ? 2 : 1)
         )
         .shadow(color: store.isControllingScreen ? Color.cyan.opacity(0.45) : Color.black.opacity(0.22), radius: store.isControllingScreen ? 9 : 5)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Digital Meld Annotate toolbar")
+        .accessibilityValue(accessibilityState.summary)
+        .accessibilityIdentifier("toolbar.root")
+        .environment(\.toolbarAccessibilityState, accessibilityState)
         .environment(\.toolbarTooltipsEnabled, preferences.snapshot.toolbarTooltipsEnabled)
         .onAppear(perform: refreshPermissionSummary)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -61,7 +80,12 @@ struct ToolbarContentView: View {
             }
             .buttonStyle(toolbarButtonStyle(active: false))
             .toolbarHelp(tooltip("Expand toolbar", action: .toggleToolbarCollapsed))
-            .accessibilityLabel("Expand toolbar")
+            .toolbarAccessibility(accessibilityState.control(
+                label: "Expand toolbar",
+                value: accessibilityState.summary,
+                hint: "Show toolbar controls",
+                identifier: "toolbar.expand"
+            ))
         }
         .frame(width: ToolbarLayoutMetrics.collapsedContentSize.width, height: ToolbarLayoutMetrics.collapsedContentSize.height, alignment: .leading)
     }
@@ -233,7 +257,12 @@ struct ToolbarContentView: View {
         }
         .buttonStyle(toolbarButtonStyle(active: false))
         .toolbarHelp(tooltip("Collapse toolbar", action: .toggleToolbarCollapsed))
-        .accessibilityLabel("Collapse toolbar")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Collapse toolbar",
+            value: accessibilityState.summary,
+            hint: "Hide toolbar controls while keeping the current state",
+            identifier: "toolbar.collapse"
+        ))
     }
 
     private var compactModeToggle: some View {
@@ -249,7 +278,13 @@ struct ToolbarContentView: View {
         }
         .buttonStyle(toolbarButtonStyle(active: preferences.snapshot.toolbarCompactMode))
         .toolbarHelp(tooltip(preferences.snapshot.toolbarCompactMode ? "Expand presenter toolbar" : "Compact presenter toolbar", action: .toggleToolbarCompactMode))
-        .accessibilityLabel("Compact presenter toolbar")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Compact presenter toolbar",
+            value: preferences.snapshot.toolbarCompactMode ? "On. \(accessibilityState.summary)" : "Off",
+            hint: preferences.snapshot.toolbarCompactMode ? "Show the full toolbar" : "Show compact controls",
+            identifier: "toolbar.compact-mode",
+            isSelected: preferences.snapshot.toolbarCompactMode
+        ))
     }
 
     @ViewBuilder private var compactControls: some View {
@@ -271,7 +306,7 @@ struct ToolbarContentView: View {
         }
         .buttonStyle(toolbarButtonStyle(active: store.activeTool == .cursor && !store.whiteboardModeEnabled))
         .toolbarHelp(tooltip("Cursor mode", action: .cursorMode))
-        .accessibilityLabel("Cursor mode")
+        .toolbarAccessibility(accessibilityState.tool(.cursor, isEnabled: true))
     }
 
     private var compactToolMenu: some View {
@@ -298,7 +333,13 @@ struct ToolbarContentView: View {
                 availableHelp: "Active tool: \(activeToolName)"
             )
         )
-        .accessibilityLabel("Active annotation tool")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Active annotation tool",
+            value: runtimeState.isSafeMode ? "Unavailable in Safe Mode" : accessibilityState.activeToolValue,
+            hint: runtimeState.isSafeMode ? "Exit Safe Mode to select an annotation tool" : "Choose an annotation tool",
+            identifier: "toolbar.compact.tool",
+            isSelected: !runtimeState.isSafeMode && accessibilityState.safetyMode == .drawing
+        ))
     }
 
     private var compactColorMenu: some View {
@@ -327,7 +368,12 @@ struct ToolbarContentView: View {
         }
         .buttonStyle(.plain)
         .toolbarHelp(tooltip("Current color", action: .customColor))
-        .accessibilityLabel("Current color")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Current color",
+            value: accessibilityState.colorValue,
+            hint: "Choose an annotation color",
+            identifier: "toolbar.compact.color"
+        ))
     }
 
     private var compactStrokeStepper: some View {
@@ -347,8 +393,14 @@ struct ToolbarContentView: View {
             .frame(width: ToolbarLayoutMetrics.buttonSize, height: ToolbarLayoutMetrics.buttonSize)
         }
         .buttonStyle(toolbarButtonStyle(active: false))
+        .accessibilityElement(children: .combine)
         .toolbarHelp("Stroke width \(Int(store.strokeWidth)) px")
-        .accessibilityLabel("Stroke width")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Stroke width",
+            value: accessibilityState.strokeWidthValue,
+            hint: "Change the stroke width",
+            identifier: "toolbar.compact.stroke-width"
+        ))
     }
 
     private var compactUndoButton: some View {

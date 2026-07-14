@@ -1,4 +1,12 @@
-# Settings Accessibility Validation
+# Accessibility Validation
+
+## Toolbar
+
+The packaged UI smoke (`scripts/smoke-ui.sh`) identifies the one visible toolbar window and scopes every query to its single current root. It validates accessible name, role, help, value, selected and enabled state, and action contract across full, compact, and collapsed layouts, including selected tool/board, paired board family and grid style, lock, hidden annotations, named color, stroke width, text style, and Safe Mode's enabled Cursor plus visible disabled drawing controls. It transitions layouts with live `AXPress` and covers collapsed Safe Mode. Compact menu buttons must expose `AXShowMenu`, but the in-process smoke deliberately does not invoke that action: AppKit menu tracking is unsafe to self-introspect from the application under test. Opening and dismissing each compact menu with VoiceOver remains a manual release-matrix check. No keyboard or HID events are posted.
+
+Before release, traverse the packaged toolbar with VoiceOver in each layout. Confirm that cursor versus drawing pointer behavior is clear before activation, board family and background are both spoken, each selected value is named without depending on its color or border, and rapid tool/color/width shortcuts do not produce proactive announcement chatter. Toggle Cursor/Drawing, Lock, and Visibility slowly enough to confirm their bounded announcements, then rapidly to confirm they remain usable without flooding speech.
+
+## Settings
 
 The packaged UI smoke (`scripts/smoke-ui.sh`) opens the real Settings window and validates the live application accessibility tree through `AXUIElement`. It checks:
 
