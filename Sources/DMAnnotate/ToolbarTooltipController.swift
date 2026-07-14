@@ -1,14 +1,34 @@
 import AppKit
 import SwiftUI
 
+struct ToolbarTooltipOwnership {
+    private(set) var activeOwner: UUID?
+
+    mutating func claim(_ owner: UUID) {
+        activeOwner = owner
+    }
+
+    mutating func release(_ owner: UUID) -> Bool {
+        guard activeOwner == owner else { return false }
+        activeOwner = nil
+        return true
+    }
+
+    mutating func releaseAll() {
+        activeOwner = nil
+    }
+}
+
 @MainActor
 final class ToolbarTooltipController {
     static let shared = ToolbarTooltipController()
 
     private var panel: NSPanel?
+    private var ownership = ToolbarTooltipOwnership()
 
-    func show(_ text: String, near screenPoint: CGPoint) {
+    func show(_ text: String, near screenPoint: CGPoint, owner: UUID) {
         guard !text.isEmpty else { return }
+        ownership.claim(owner)
 
         let contentView = NSHostingView(rootView: ToolbarTooltipBubble(text: text))
         let size = contentView.fittingSize
@@ -20,7 +40,13 @@ final class ToolbarTooltipController {
         self.panel = panel
     }
 
+    func hide(owner: UUID) {
+        guard ownership.release(owner) else { return }
+        panel?.orderOut(nil)
+    }
+
     func hide() {
+        ownership.releaseAll()
         panel?.orderOut(nil)
     }
 

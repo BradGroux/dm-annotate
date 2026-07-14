@@ -18,6 +18,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ### Fixed
 
+- Use the custom toolbar tooltip as the only visual help surface, preserve one VoiceOver hint per control, and prevent an old hover exit from dismissing an adjacent control's tooltip.
 - Expose the toolbar's active tool, pointer-capture safety mode, board family and background, annotation lock and visibility, color, stroke width, and text style to VoiceOver in full, compact, and collapsed layouts without chatty rapid-change announcements.
 - Bring the toolbar front without positional motion when using Find Toolbar, honor Reduce Motion, and bound repeated accessibility announcements.
 - Preserve solid and grid board background preferences across board toggles and restarts, and make Whiteboard/Blackboard toolbar visibility one atomic setting.

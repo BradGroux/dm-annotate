@@ -10,6 +10,12 @@ Safety-mode, annotation-lock, and annotation-visibility transitions post one con
 
 Focused tests cover the shared summary, paired board semantics, Safe Mode disabled selection, custom-color naming, and the announcement boundary. The packaged UI smoke inspects the live AX tree in normal full, compact, collapsed, board, and Safe Mode states.
 
+## Toolbar Help
+
+Toolbar controls use the app's custom tooltip panel as their only visual help surface. SwiftUI's native visual help tag is not installed on those controls, avoiding a second tooltip after the pointer rests over the same item. Each control still exposes one semantic accessibility hint whether visual toolbar tooltips are enabled or disabled.
+
+Hover feedback is immediate in horizontal, vertical, compact, and collapsed layouts. The shared panel tracks the control that most recently presented it, so an out-of-order hover-exit event from a neighboring control cannot hide the current tooltip. Turning off Show toolbar tooltips clears the panel unconditionally without removing accessibility hints. Focused ownership tests cover adjacent-control replacement, current-control dismissal, and preference-driven clearing.
+
 ## Adaptive Selected Controls
 
 Selected toolbar controls, settings sidebar rows, stroke widths, and text sizes share `AdaptiveSelectedControlStyle`. The style uses AppKit's semantic selected-control background so the surface follows the current macOS accent and appearance. It selects black or white foreground content from the resolved background using WCAG relative luminance and applies the higher-contrast option. Selection changes are immediate and do not animate because these controls are used frequently and can be changed with keyboard shortcuts.

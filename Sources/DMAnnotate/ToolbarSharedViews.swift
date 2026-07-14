@@ -119,31 +119,24 @@ struct ToolbarIconButtonVisualState: Equatable {
 
 struct ToolbarTooltipModifier: ViewModifier {
     @Environment(\.toolbarTooltipsEnabled) private var tooltipsEnabled
+    @State private var tooltipOwner = UUID()
 
     let text: String
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if tooltipsEnabled {
-            content
-                .help(text)
-                .accessibilityHint(text)
-                .onHover { isHovering in
-                    if isHovering {
-                        ToolbarTooltipController.shared.show(text, near: NSEvent.mouseLocation)
-                    } else {
-                        ToolbarTooltipController.shared.hide()
-                    }
+        content
+            .accessibilityHint(text)
+            .onHover { isHovering in
+                if isHovering && tooltipsEnabled {
+                    ToolbarTooltipController.shared.show(
+                        text,
+                        near: NSEvent.mouseLocation,
+                        owner: tooltipOwner
+                    )
+                } else {
+                    ToolbarTooltipController.shared.hide(owner: tooltipOwner)
                 }
-        } else {
-            content
-                .accessibilityHint(text)
-                .onHover { isHovering in
-                    if !isHovering {
-                        ToolbarTooltipController.shared.hide()
-                    }
-                }
-        }
+            }
     }
 }
 
