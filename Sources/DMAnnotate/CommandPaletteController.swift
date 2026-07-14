@@ -2,18 +2,26 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class CommandPaletteController {
+final class CommandPaletteController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
+    private var model: CommandPaletteInteractionModel?
+    private weak var previousKeyWindow: NSWindow?
+    private var previousApplication: NSRunningApplication?
 
     func show(commands: [CommandPaletteCommand]) {
-        if panel == nil {
-            makePanel(commands: commands)
-        } else if let hostingView = panel?.contentView as? NSHostingView<CommandPaletteView> {
-            hostingView.rootView = CommandPaletteView(commands: commands) { [weak self] in
-                self?.panel?.close()
-            }
+        if panel?.isVisible != true {
+            captureFocusOrigin()
         }
 
+        if let model {
+            model.replaceCommands(commands)
+        } else {
+            let model = CommandPaletteInteractionModel(commands: commands)
+            self.model = model
+            makePanel(model: model)
+        }
+
+        model?.requestSearchFocus()
         panel?.center()
         panel?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -21,7 +29,7 @@ final class CommandPaletteController {
 
     func toggle(commands: [CommandPaletteCommand]) {
         if panel?.isVisible == true {
-            panel?.orderOut(nil)
+            dismiss()
         } else {
             show(commands: commands)
         }
@@ -31,9 +39,13 @@ final class CommandPaletteController {
         panel?.isVisible == true
     }
 
-    private func makePanel(commands: [CommandPaletteCommand]) {
-        let view = CommandPaletteView(commands: commands) { [weak self] in
-            self?.panel?.close()
+    func windowWillClose(_ notification: Notification) {
+        restoreFocusOrigin()
+    }
+
+    private func makePanel(model: CommandPaletteInteractionModel) {
+        let view = CommandPaletteView(model: model) { [weak self] in
+            self?.dismiss()
         }
         let panel = NSPanel(
             contentRect: CGRect(x: 0, y: 0, width: 520, height: 520),
@@ -44,75 +56,38 @@ final class CommandPaletteController {
 
         panel.title = "Digital Meld Annotate Commands"
         panel.contentView = NSHostingView(rootView: view)
+        panel.animationBehavior = .none
         panel.isReleasedWhenClosed = false
+        panel.delegate = self
         self.panel = panel
     }
-}
 
-struct CommandPaletteCommand: Identifiable {
-    let id = UUID()
-    var title: String
-    var subtitle: String
-    var systemImage: String
-    var action: @MainActor () -> Void
-}
-
-private struct CommandPaletteView: View {
-    let commands: [CommandPaletteCommand]
-    var close: () -> Void
-    @State private var query = ""
-
-    private var filteredCommands: [CommandPaletteCommand] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return commands }
-        return commands.filter {
-            $0.title.lowercased().contains(trimmed) ||
-                $0.subtitle.lowercased().contains(trimmed)
-        }
+    private func dismiss() {
+        panel?.orderOut(nil)
+        restoreFocusOrigin()
     }
 
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "command")
-                    .foregroundStyle(.secondary)
-                TextField("Search commands", text: $query)
-                    .textFieldStyle(.plain)
-            }
-            .padding(12)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    private func captureFocusOrigin() {
+        previousKeyWindow = NSApp.keyWindow === panel ? nil : NSApp.keyWindow
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        previousApplication = frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+            ? nil
+            : frontmostApplication
+    }
 
-            ScrollView {
-                LazyVStack(spacing: 6) {
-                    ForEach(filteredCommands) { command in
-                        Button {
-                            close()
-                            command.action()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: command.systemImage)
-                                    .frame(width: 22)
-                                    .foregroundStyle(.secondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(command.title)
-                                        .font(.body.weight(.semibold))
-                                    Text(command.subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .padding(10)
-                        }
-                        .buttonStyle(.plain)
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .accessibilityLabel(command.title)
-                    }
-                }
-            }
+    private func restoreFocusOrigin() {
+        switch CommandPaletteAppKitSeams.restorationDestination(
+            previousWindowVisible: previousKeyWindow?.isVisible == true,
+            previousApplicationAvailable: previousApplication != nil
+        ) {
+        case .window:
+            previousKeyWindow?.makeKeyAndOrderFront(nil)
+        case .application:
+            previousApplication?.activate(options: [.activateIgnoringOtherApps])
+        case .none:
+            break
         }
-        .padding(16)
-        .frame(width: 520, height: 520)
+        previousKeyWindow = nil
+        previousApplication = nil
     }
 }

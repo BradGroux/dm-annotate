@@ -23,6 +23,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 - Report Input Monitoring through the supported listen-event APIs, request it only from an explicit action, and rebuild global shortcut monitoring after app activation.
 - Name shortcut recovery consistently as Restart Shortcut Monitoring without implying that a permission or shortcut test occurred.
 - Crop region screenshots before allocating the annotated output, remove the TIFF-to-PNG round trip, and move PNG encoding and file writes off the main actor.
+- Focus command search on open and support immediate Up/Down selection, Return execution, Escape cancellation, empty results, and VoiceOver selection announcements.
 
 ## 0.1.12 - 2026-05-31
 
