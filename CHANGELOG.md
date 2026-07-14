@@ -22,6 +22,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 - Validate annotation sessions before atomic export, preserve existing files on failed saves, and bound live stroke points so saved sessions always remain reloadable.
 - Report Input Monitoring through the supported listen-event APIs, request it only from an explicit action, and rebuild global shortcut monitoring after app activation.
 - Name shortcut recovery consistently as Restart Shortcut Monitoring without implying that a permission or shortcut test occurred.
+- Crop region screenshots before allocating the annotated output, remove the TIFF-to-PNG round trip, and move PNG encoding and file writes off the main actor.
 
 ## 0.1.12 - 2026-05-31
 

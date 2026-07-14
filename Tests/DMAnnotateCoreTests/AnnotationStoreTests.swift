@@ -1311,6 +1311,18 @@ import Testing
     #expect(rect == CGRect(x: 20, y: 41, width: 201, height: 101))
 }
 
+@Test func screenshotGeometryIncludesFractionalOriginAndMaximumRetinaEdges() {
+    let rect = ScreenshotGeometry.pixelRect(
+        forRegion: CGRect(x: 10.25, y: 20.25, width: 100.5, height: 50.5),
+        pointSize: CGSize(width: 500, height: 300),
+        pixelSize: CGSize(width: 1_000, height: 600)
+    )
+
+    #expect(rect == CGRect(x: 20, y: 40, width: 202, height: 102))
+    #expect(Int(rect.maxX) == 222)
+    #expect(Int(rect.maxY) == 142)
+}
+
 @Test func screenshotGeometryClampsRegionToPixelBounds() {
     let rect = ScreenshotGeometry.pixelRect(
         forRegion: CGRect(x: -20, y: 90, width: 80, height: 80),
@@ -1329,6 +1341,34 @@ import Testing
     )
 
     #expect(rect == .zero)
+}
+
+@Test func screenshotGeometryMapsLowerLeftRegionToCGImageCropCoordinates() {
+    let cropRect = ScreenshotGeometry.cgImageCropRect(
+        forPixelRect: CGRect(x: 20, y: 41, width: 201, height: 101),
+        imageSize: CGSize(width: 1_000, height: 600)
+    )
+
+    #expect(cropRect == CGRect(x: 20, y: 458, width: 201, height: 101))
+}
+
+@Test func screenshotGeometryClampsCGImageCropCoordinates() {
+    let cropRect = ScreenshotGeometry.cgImageCropRect(
+        forPixelRect: CGRect(x: -10, y: 190, width: 40, height: 30),
+        imageSize: CGSize(width: 200, height: 200)
+    )
+
+    #expect(cropRect == CGRect(x: 0, y: 0, width: 30, height: 10))
+}
+
+@Test func screenshotGeometryMapsLocalRegionToIntegralDisplayCaptureRect() {
+    let captureRect = ScreenshotGeometry.displayCaptureRect(
+        forRegion: CGRect(x: 10.25, y: 20.5, width: 100.25, height: 50.25),
+        pointSize: CGSize(width: 500, height: 300),
+        displayBounds: CGRect(x: 1_920, y: -100, width: 500, height: 300)
+    )
+
+    #expect(captureRect == CGRect(x: 1_930, y: 129, width: 101, height: 51))
 }
 
 @Test func toolbarLayoutMetricsClampHorizontalWidthToVisibleFrame() {

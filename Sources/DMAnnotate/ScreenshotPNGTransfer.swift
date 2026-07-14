@@ -1,15 +1,51 @@
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
-@MainActor
-struct ScreenshotPNGEncoder {
-    func encode(_ image: NSImage) throws -> Data {
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let data = bitmap.representation(using: .png, properties: [:]) else {
+struct ScreenshotPNGEncoder: Sendable {
+    func encode(_ image: CGImage) throws -> Data {
+        guard let encodedData = CFDataCreateMutable(nil, 0),
+              let destination = CGImageDestinationCreateWithData(
+                  encodedData,
+                  UTType.png.identifier as CFString,
+                  1,
+                  nil
+              ) else {
             throw ScreenshotPNGError.encodingFailed
         }
 
-        return data
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ScreenshotPNGError.encodingFailed
+        }
+
+        return encodedData as Data
+    }
+}
+
+struct ScreenshotPNGFileWriter: Sendable {
+    private let encoder = ScreenshotPNGEncoder()
+
+    func write(_ image: CGImage, to file: URL) throws {
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try encoder.encode(image)
+        try data.write(to: file, options: .atomic)
+    }
+}
+
+actor ScreenshotPNGOutputProcessor {
+    private let encoder = ScreenshotPNGEncoder()
+    private let fileWriter = ScreenshotPNGFileWriter()
+
+    func encode(_ image: CGImage) throws -> Data {
+        try encoder.encode(image)
+    }
+
+    func write(_ image: CGImage, to file: URL) throws {
+        try fileWriter.write(image, to: file)
     }
 }
 

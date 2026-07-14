@@ -25,7 +25,7 @@ Tests/
 | `ToolbarContentView` | SwiftUI toolbar controls and hover help |
 | `ToolbarLayoutMetrics` | Shared toolbar sizing constants and panel size estimates |
 | `ShortcutController` | Local/global shortcut monitors and emergency escape handling |
-| `ScreenshotController` | Full-display and region screenshot capture |
+| `ScreenshotController` | Full-display and region screenshot capture with region-first rendering |
 | `ScreenshotGeometry` | Testable screenshot region-to-pixel geometry |
 | `PreferencesController` | `UserDefaults` persistence and preference side effects |
 | `PermissionOnboardingController` | First-run and manual permission guidance |
@@ -70,6 +70,8 @@ Normal operation is local-only:
 
 Screenshots are only copied to the local clipboard or saved to the configured local folder.
 
+Region capture crops the screen image before allocating its annotated render target. PNG encoding uses the existing `CGImage` directly through Image I/O, and encoding plus file writes run off the main actor after hidden capture chrome has been restored. Clipboard publication returns to the main actor because `NSPasteboard` is an AppKit boundary.
+
 ## Dependencies
 
 The project currently has no production dependencies outside Apple frameworks and SwiftPM.
@@ -84,6 +86,7 @@ Core behavior should stay testable in `DMAnnotateCore` without launching a macOS
 - Shortcut normalization.
 - Preference migration.
 - Screenshot naming.
+- Screenshot crop geometry and direct PNG dimensions/alpha.
 - Text move and text style normalization.
 - Safe exit state.
 
