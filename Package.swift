@@ -17,6 +17,11 @@ let package = Package(
             name: "DMAnnotate",
             dependencies: ["DMAnnotateCore"]
         ),
+        .executableTarget(
+            name: "DMAnnotateBenchmarks",
+            dependencies: ["DMAnnotateCore"],
+            path: "Benchmarks/DMAnnotateBenchmarks"
+        ),
         .testTarget(
             name: "DMAnnotateCoreTests",
             dependencies: ["DMAnnotateCore"]

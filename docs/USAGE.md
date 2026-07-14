@@ -198,7 +198,19 @@ Use **File > Save Annotation Session...** to write the current annotations to a 
 
 Session files contain annotation geometry, display IDs, colors, stroke widths, text styles, visibility, lock state, and whiteboard state. If a saved display is missing when loading, annotations are retargeted to the current main display. Session files stay local and are not synced by the app.
 
-Sessions support up to 10,000 annotations, 20,000 points per annotation, 8,000 characters per text annotation, and 10 MiB of encoded data. Long live strokes are progressively simplified before they reach the point limit. Saving validates the complete session before atomically replacing a file, so a failed save leaves an existing file unchanged and reports what to reduce or recreate before retrying.
+Sessions support up to 10,000 annotations, 20,000 points per annotation, 8,000 characters per text annotation, and 10 MiB of encoded data. Long live strokes are progressively simplified before they reach the point limit while preserving endpoints and sharp turns. Saving validates the complete session before atomically replacing a file, so a failed save leaves an existing file unchanged and reports what to reduce or recreate before retrying.
+
+Interactive drawing work is bounded independently of the session limits. Laser trails retain at most 240 spatially distinct samples from the latest 1.5 seconds and reuse one 30 Hz cleanup timer per overlay. Erasing first checks cached annotation bounds, then rejects 64-segment spatial chunks before detailed segment tests. The selected performance budget is one 120 Hz frame (8.33 ms) for an eraser event in a heavy session.
+
+Run the repeatable optimized benchmark from the repository root:
+
+```bash
+swift run -c release DMAnnotateBenchmarks
+```
+
+The benchmark reports median and p95 work for live stores containing two million and ten million points at the supported per-annotation limit. It allocates and slightly translates every stroke independently so the dataset is not backed by one copy-on-write point array. Both adversarial scenarios place the eraser inside every annotation's overall bounds: one misses all detailed stroke segments, while the other hits every candidate. The command exits unsuccessfully if either p95 exceeds 8.33 ms. The ten-million-point live store intentionally exceeds the 10 MiB encoded-session limit and is not presented as a saveable session. Keep timing out of the portable unit suite because hardware and concurrent system load vary; use Instruments to validate drawing, erasing, moving, and laser input on supported hardware before a release.
+
+Reference run on July 14, 2026, using an Apple M5 with macOS 26.5.1: two million points measured 3.274 ms p95 for the inside-bounds miss and 0.687 ms for the multi-candidate hit; ten million points measured 1.479 ms and 1.662 ms respectively. All four cases stayed below the enforced 8.33 ms budget. Treat these as comparison evidence, not universal guarantees.
 
 ## Safe Mode
 

@@ -21,7 +21,7 @@ enum AnnotationRenderer {
         }
     }
 
-    static func draw(_ annotation: AnnotationItem) {
+    static func draw(_ annotation: AnnotationItem, strokePath cachedStrokePath: NSBezierPath? = nil) {
         let color = NSColor(annotation.color)
         let path = NSBezierPath()
         path.lineWidth = annotation.kind == .highlighter ? annotation.lineWidth * 3 : annotation.lineWidth
@@ -35,24 +35,12 @@ enum AnnotationRenderer {
                 drawDot(at: first, color: color, width: path.lineWidth, alpha: annotation.kind == .highlighter ? 0.34 : color.alphaComponent)
                 return
             }
-            path.move(to: first)
-            if annotation.points.count > 2 {
-                for index in 1..<(annotation.points.count - 1) {
-                    let current = annotation.points[index]
-                    let next = annotation.points[index + 1]
-                    let midpoint = CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2)
-                    path.curve(to: midpoint, controlPoint1: current, controlPoint2: current)
-                }
-                if let last = annotation.points.last {
-                    path.line(to: last)
-                }
-            } else {
-                for point in annotation.points.dropFirst() {
-                    path.line(to: point)
-                }
-            }
+            let strokePath = cachedStrokePath ?? makeStrokePath(for: annotation.points)
+            strokePath.lineWidth = path.lineWidth
+            strokePath.lineCapStyle = .round
+            strokePath.lineJoinStyle = .round
             color.withAlphaComponent(annotation.kind == .highlighter ? 0.34 : color.alphaComponent).setStroke()
-            path.stroke()
+            strokePath.stroke()
         case .line:
             drawLine(annotation.points, color: color, width: annotation.lineWidth)
         case .rectangle:
@@ -74,6 +62,29 @@ enum AnnotationRenderer {
         }
     }
 
+    static func makeStrokePath(for points: [CGPoint]) -> NSBezierPath {
+        let path = NSBezierPath()
+        guard let first = points.first else { return path }
+
+        path.move(to: first)
+        if points.count > 2 {
+            for index in 1..<(points.count - 1) {
+                let current = points[index]
+                let next = points[index + 1]
+                let midpoint = CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2)
+                path.curve(to: midpoint, controlPoint1: current, controlPoint2: current)
+            }
+            if let last = points.last {
+                path.line(to: last)
+            }
+        } else {
+            for point in points.dropFirst() {
+                path.line(to: point)
+            }
+        }
+        return path
+    }
+
     static func drawSelection(_ annotation: AnnotationItem) {
         let rect = annotation.boundingRect.expanded(by: 5)
         guard !rect.isNull, !rect.isEmpty else { return }
@@ -91,12 +102,13 @@ enum AnnotationRenderer {
         }
     }
 
-    static func drawLaserTrail(_ points: [TimedPoint]) {
+    static func drawLaserTrail(_ points: [LaserTrailPoint]) {
         guard points.count > 1 else { return }
+        let now = Date()
 
         for index in 0..<(points.count - 1) {
-            let age = Date().timeIntervalSince(points[index].timestamp)
-            let alpha = max(0, 1 - age / 1.5)
+            let age = now.timeIntervalSince(points[index].timestamp)
+            let alpha = max(0, 1 - age / LaserTrail.lifetime)
             let path = NSBezierPath()
             path.lineWidth = 10
             path.lineCapStyle = .round
@@ -224,11 +236,6 @@ private extension CGRect {
             CGPoint(x: minX, y: midY)
         ]
     }
-}
-
-struct TimedPoint {
-    var point: CGPoint
-    var timestamp: Date
 }
 
 extension NSFont.Weight {

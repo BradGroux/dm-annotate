@@ -22,10 +22,33 @@ final class OverlayController {
             object: nil
         )
 
-        store.objectWillChange
+        store.annotationInvalidations
+            .sink { [weak self] invalidation in
+                Task { @MainActor in
+                    self?.apply(invalidation)
+                }
+            }
+            .store(in: &cancellables)
+
+        store.$activeTool
+            .dropFirst()
             .sink { [weak self] _ in
                 Task { @MainActor in
-                    self?.syncWithStore()
+                    self?.updateInteractivity()
+                    self?.overlayViews.forEach { $0.syncInteractionState() }
+                }
+            }
+            .store(in: &cancellables)
+
+        let fullRedrawSignals: [AnyPublisher<Void, Never>] = [
+            store.$isVisible.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            store.$whiteboardModeEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            store.$whiteboardBackground.dropFirst().map { _ in () }.eraseToAnyPublisher()
+        ]
+        Publishers.MergeMany(fullRedrawSignals)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.refresh()
                 }
             }
             .store(in: &cancellables)
@@ -64,10 +87,12 @@ final class OverlayController {
         }
     }
 
-    private func syncWithStore() {
-        updateInteractivity()
-        windows.compactMap { $0.contentView as? OverlayView }.forEach { $0.syncWithStore() }
-        refresh()
+    private var overlayViews: [OverlayView] {
+        windows.compactMap { $0.contentView as? OverlayView }
+    }
+
+    private func apply(_ invalidation: AnnotationInvalidation) {
+        overlayViews.forEach { $0.apply(invalidation) }
     }
 
     @objc private func screenParametersChanged() {

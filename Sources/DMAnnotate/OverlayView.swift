@@ -6,8 +6,9 @@ final class OverlayView: NSView, NSTextViewDelegate {
     private let store: AnnotationStore
     private let displayID: UInt32
     private var preview: AnnotationItem?
-    private var laserTrail: [TimedPoint] = []
+    private var laserTrail = LaserTrail()
     private var laserTimer: Timer?
+    private var strokePathCache: [AnnotationItem.ID: NSBezierPath] = [:]
     private weak var activeTextView: NSTextView?
     private var activeTextOrigin: CGPoint?
     private var textMove: TextMove?
@@ -43,7 +44,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
         super.viewWillMove(toWindow: newWindow)
     }
 
-    func syncWithStore() {
+    func syncInteractionState() {
         if store.activeTool == .cursor {
             preview = nil
             textMove = nil
@@ -55,6 +56,19 @@ final class OverlayView: NSView, NSTextViewDelegate {
         needsDisplay = true
     }
 
+    func apply(_ invalidation: AnnotationInvalidation) {
+        if invalidation.requiresFullRedraw {
+            strokePathCache.removeAll(keepingCapacity: true)
+            needsDisplay = true
+            return
+        }
+
+        invalidation.annotationIDs.forEach { strokePathCache.removeValue(forKey: $0) }
+        invalidation.regions
+            .filter { $0.displayID == displayID }
+            .forEach { setNeedsDisplay($0.rect) }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         if store.whiteboardModeEnabled {
             AnnotationRenderer.drawWhiteboard(in: bounds, background: store.whiteboardBackground)
@@ -62,10 +76,15 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
         guard store.isVisible else { return }
 
-        store.annotations
-            .filter { $0.displayID == displayID }
+        store.annotations(intersecting: dirtyRect, displayID: displayID)
             .forEach { annotation in
-                AnnotationRenderer.draw(annotation)
+                if annotation.kind == .pen || annotation.kind == .highlighter {
+                    let path = strokePathCache[annotation.id] ?? AnnotationRenderer.makeStrokePath(for: annotation.points)
+                    strokePathCache[annotation.id] = path
+                    AnnotationRenderer.draw(annotation, strokePath: path)
+                } else {
+                    AnnotationRenderer.draw(annotation)
+                }
                 if annotation.id == store.selectedAnnotationID {
                     AnnotationRenderer.drawSelection(annotation)
                 }
@@ -75,7 +94,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             AnnotationRenderer.draw(preview)
         }
 
-        AnnotationRenderer.drawLaserTrail(laserTrail)
+        AnnotationRenderer.drawLaserTrail(laserTrail.points)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -104,6 +123,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             preview = AnnotationItem(displayID: displayID, kind: .highlighter, points: [point], color: store.currentColor, lineWidth: store.strokeWidth)
         case .eraser:
             store.erase(at: point, radius: max(store.strokeWidth * 3, 14), displayID: displayID)
+            return
         case .line:
             preview = AnnotationItem(displayID: displayID, kind: .line, points: [point, point], color: store.currentColor, lineWidth: store.strokeWidth)
         case .rectangle:
@@ -119,6 +139,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             beginTextEntry(at: point)
         case .laser:
             appendLaserPoint(point)
+            return
         case .whiteboard, .blackboard:
             break
         }
@@ -133,20 +154,27 @@ final class OverlayView: NSView, NSTextViewDelegate {
         switch store.activeTool {
         case .select:
             moveSelectedAnnotation(to: point)
+            return
         case .pen, .highlighter:
             guard var currentPreview = preview else { return }
+            let previousBounds = currentPreview.boundingRect
             currentPreview.appendSessionPoint(point)
             preview = currentPreview
+            setNeedsDisplay(previousBounds.union(currentPreview.boundingRect))
+            return
         case .line, .rectangle, .ellipse, .arrow:
             guard var currentPreview = preview, let start = currentPreview.points.first else { return }
             currentPreview.points = [start, point]
             preview = currentPreview
         case .eraser:
             store.erase(at: point, radius: max(store.strokeWidth * 3, 14), displayID: displayID)
+            return
         case .laser:
             appendLaserPoint(point)
+            return
         case .text:
             moveText(to: point)
+            return
         case .cursor, .whiteboard, .blackboard:
             break
         }
@@ -176,7 +204,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
             }
             self.annotationMove = nil
             NSCursor.openHand.set()
-            needsDisplay = true
             return
         }
 
@@ -186,7 +213,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
             }
             self.textMove = nil
             NSCursor.openHand.set()
-            needsDisplay = true
             return
         }
 
@@ -197,7 +223,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
             store.add(finalPreview)
         }
 
-        needsDisplay = true
+        setNeedsDisplay(finalPreview.boundingRect)
     }
 
     override func keyDown(with event: NSEvent) {
@@ -210,7 +236,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
         if event.keyCode == 53 {
             if store.selectedAnnotationID != nil {
                 store.clearSelection()
-                needsDisplay = true
                 return
             }
             store.exitScreenControls()
@@ -219,7 +244,6 @@ final class OverlayView: NSView, NSTextViewDelegate {
 
         if event.keyCode == 51 || event.keyCode == 117 {
             if store.deleteSelectedAnnotation() {
-                needsDisplay = true
                 return
             }
         }
@@ -442,25 +466,27 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     private func appendLaserPoint(_ point: CGPoint) {
-        laserTrail.append(TimedPoint(point: point, timestamp: Date()))
-        laserTrail = laserTrail.filter { Date().timeIntervalSince($0.timestamp) < 1.5 }
+        let previousBounds = laserTrail.boundingRect
+        laserTrail.append(point, at: Date())
 
-        laserTimer?.invalidate()
-        laserTimer = Timer.scheduledTimer(
-            timeInterval: 1 / 30,
-            target: self,
-            selector: #selector(trimLaserTrail(_:)),
-            userInfo: nil,
-            repeats: true
-        )
+        if laserTimer == nil {
+            laserTimer = Timer.scheduledTimer(
+                timeInterval: 1 / 30,
+                target: self,
+                selector: #selector(trimLaserTrail(_:)),
+                userInfo: nil,
+                repeats: true
+            )
+        }
 
-        needsDisplay = true
+        setNeedsDisplay(previousBounds.union(laserTrail.boundingRect).expanded(by: 12))
     }
 
     @objc private func trimLaserTrail(_ timer: Timer) {
-        laserTrail = laserTrail.filter { Date().timeIntervalSince($0.timestamp) < 1.5 }
-        needsDisplay = true
-        if laserTrail.isEmpty {
+        let previousBounds = laserTrail.boundingRect
+        laserTrail.trim(at: Date())
+        setNeedsDisplay(previousBounds.union(laserTrail.boundingRect).expanded(by: 12))
+        if laserTrail.points.isEmpty {
             timer.invalidate()
             laserTimer = nil
         }

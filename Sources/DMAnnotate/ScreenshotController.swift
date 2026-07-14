@@ -274,7 +274,7 @@ final class ScreenshotController {
 
         store.annotations
             .filter { $0.displayID == displayID }
-            .forEach(AnnotationRenderer.draw)
+            .forEach { AnnotationRenderer.draw($0) }
     }
 
     private func save(_ image: CGImage, renderMode: ScreenshotRenderMode) {
