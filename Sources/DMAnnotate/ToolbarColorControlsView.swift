@@ -8,6 +8,7 @@ struct ToolbarColorControlsView: View {
     var columns: [GridItem]?
     @State private var isPalettePopoverPresented = false
     @State private var selectedPaletteIndex = 0
+    @Environment(\.toolbarAccessibilityState) private var accessibilityState
 
     private var paletteColumns: [GridItem] {
         Array(
@@ -40,7 +41,13 @@ struct ToolbarColorControlsView: View {
             }
             .buttonStyle(.plain)
             .toolbarHelp(tooltip("Quick color \(index + 1)", action: quickColorAction(index)))
-            .accessibilityLabel("Quick color \(index + 1)")
+            .toolbarAccessibility(accessibilityState.control(
+                label: "Quick color \(index + 1), \(colorName(color))",
+                value: store.currentColor == color ? "Selected" : "Available",
+                hint: "Use this annotation color",
+                identifier: "toolbar.color.quick-\(index + 1)",
+                isSelected: store.currentColor == color
+            ))
         }
 
         customColorButton
@@ -60,7 +67,12 @@ struct ToolbarColorControlsView: View {
             palettePopover
         }
         .toolbarHelp("Color palette")
-        .accessibilityLabel("Color palette")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Color palette",
+            value: accessibilityState.colorValue,
+            hint: "Choose or edit a palette color",
+            identifier: "toolbar.color.palette"
+        ))
     }
 
     private var palettePopover: some View {
@@ -77,6 +89,13 @@ struct ToolbarColorControlsView: View {
                     }
                     .buttonStyle(.plain)
                     .toolbarHelp("Palette color \(index + 1)")
+                    .toolbarAccessibility(accessibilityState.control(
+                        label: "Palette color \(index + 1), \(colorName(color))",
+                        value: store.currentColor == color ? "Selected" : "Available",
+                        hint: "Use this annotation color",
+                        identifier: "toolbar.color.palette-\(index + 1)",
+                        isSelected: store.currentColor == color
+                    ))
                     .contextMenu {
                         Button("Replace Color") {
                             replacePaletteColor(at: index)
@@ -158,7 +177,12 @@ struct ToolbarColorControlsView: View {
         }
         .buttonStyle(.plain)
         .toolbarHelp(tooltip("Custom color", action: .customColor))
-        .accessibilityLabel("Custom color")
+        .toolbarAccessibility(accessibilityState.control(
+            label: "Custom color",
+            value: accessibilityState.colorValue,
+            hint: "Open the system color picker",
+            identifier: "toolbar.color.custom"
+        ))
     }
 
     private func colorSwatch(_ color: RGBAColor, selected: Bool, size: CGFloat) -> some View {
@@ -179,6 +203,10 @@ struct ToolbarColorControlsView: View {
     private func contrastColor(for color: RGBAColor) -> Color {
         let luminance = (0.299 * color.red) + (0.587 * color.green) + (0.114 * color.blue)
         return luminance > 0.62 ? .black : .white
+    }
+
+    private func colorName(_ color: RGBAColor) -> String {
+        accessibilityState.colorValue(for: color)
     }
 
     private var safePaletteIndex: Int {

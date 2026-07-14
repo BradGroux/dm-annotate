@@ -199,6 +199,8 @@ Settings include:
 
 Settings controls expose their names and current state to VoiceOver. Sidebar sections announce selection, and repeated actions such as clearing shortcuts or deleting toolbar presets include the affected item name.
 
+The floating toolbar also exposes its complete live state to VoiceOver in full, compact, and collapsed layouts: Cursor, Drawing, or Safe Mode and pointer behavior; active tool; Whiteboard/Blackboard family and background; annotation lock and visibility; named color; stroke width; and text style. Selected controls expose their selected state, while Safe Mode drawing controls remain discoverable as disabled. Only safety-mode, lock, and visibility transitions post bounded announcements; rapid drawing-tool and style changes update values without interrupting presentation audio.
+
 To edit a shortcut without a pointer, use Full Keyboard Access to focus its recorder, press `Space` or `Return`, then press the new shortcut. Press `Delete` while recording to clear it or `Escape` to cancel. VoiceOver announces the action name, assigned shortcut, recording instructions, and any duplicate or rejected state.
 
 See [Settings Accessibility Validation](ACCESSIBILITY-TESTING.md) for the packaged AX smoke coverage and manual VoiceOver/Accessibility Inspector matrix.

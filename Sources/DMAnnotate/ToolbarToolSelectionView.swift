@@ -6,6 +6,7 @@ struct ToolbarToolSelectionView: View {
     @ObservedObject var store: AnnotationStore
     @ObservedObject var preferences: PreferencesController
     @ObservedObject var runtimeState: AppRuntimeState
+    @Environment(\.toolbarAccessibilityState) private var accessibilityState
 
     var body: some View {
         ForEach(AnnotationTool.allCases.filter { preferences.snapshot.visibleTools.contains($0) }) { tool in
@@ -21,7 +22,10 @@ struct ToolbarToolSelectionView: View {
             .buttonStyle(ToolbarIconButtonStyle(active: isActive(tool), highContrast: preferences.snapshot.highContrastToolbar))
             .disabled(!ToolbarToolAvailability.isEnabled(tool, isSafeMode: runtimeState.isSafeMode))
             .toolbarHelp(helpText(for: tool))
-            .accessibilityLabel(tool.displayName)
+            .toolbarAccessibility(accessibilityState.tool(
+                tool,
+                isEnabled: ToolbarToolAvailability.isEnabled(tool, isSafeMode: runtimeState.isSafeMode)
+            ))
         }
     }
 

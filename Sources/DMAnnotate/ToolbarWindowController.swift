@@ -20,19 +20,24 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private var suppressMovePersistenceUntil: Date?
     private var lastFindAnnouncementUptime: TimeInterval?
     private let findAccessibilityAnnouncer: any ToolbarFindAccessibilityAnnouncing
+    private var stateAnnouncementCoalescer = ToolbarAccessibilityAnnouncementCoalescer()
+    private var stateAnnouncementTask: Task<Void, Never>?
+    private let stateAccessibilityAnnouncer: any ToolbarStateAccessibilityAnnouncing
 
     init(
         store: AnnotationStore,
         preferences: PreferencesController,
         runtimeState: AppRuntimeState,
         actions: ToolbarActions,
-        findAccessibilityAnnouncer: any ToolbarFindAccessibilityAnnouncing = AppKitToolbarFindAccessibilityAnnouncer()
+        findAccessibilityAnnouncer: any ToolbarFindAccessibilityAnnouncing = AppKitToolbarFindAccessibilityAnnouncer(),
+        stateAccessibilityAnnouncer: any ToolbarStateAccessibilityAnnouncing = AppKitToolbarStateAccessibilityAnnouncer()
     ) {
         self.store = store
         self.preferences = preferences
         self.runtimeState = runtimeState
         self.actions = actions
         self.findAccessibilityAnnouncer = findAccessibilityAnnouncer
+        self.stateAccessibilityAnnouncer = stateAccessibilityAnnouncer
         super.init()
 
         preferences.$snapshot
@@ -48,6 +53,74 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
                 self?.resizeToFit()
             }
             .store(in: &cancellables)
+
+        Publishers.CombineLatest3(store.$activeTool, store.$whiteboardModeEnabled, runtimeState.$isSafeMode)
+            .map { activeTool, whiteboardModeEnabled, isSafeMode in
+                ToolbarAccessibilitySafetyMode.resolve(
+                    activeTool: activeTool,
+                    whiteboardModeEnabled: whiteboardModeEnabled,
+                    isSafeMode: isSafeMode
+                )
+            }
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleStateAnnouncement()
+            }
+            .store(in: &cancellables)
+
+        store.$annotationsLocked
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleStateAnnouncement()
+            }
+            .store(in: &cancellables)
+
+        store.$isVisible
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleStateAnnouncement()
+            }
+            .store(in: &cancellables)
+    }
+
+    deinit {
+        stateAnnouncementTask?.cancel()
+    }
+
+    private func scheduleStateAnnouncement() {
+        guard panel?.isVisible == true else { return }
+        let currentUptime = ProcessInfo.processInfo.systemUptime
+        stateAnnouncementCoalescer.schedule(
+            ToolbarAccessibilityAnnouncementSnapshot(
+                safetyMode: ToolbarAccessibilitySafetyMode.resolve(
+                    activeTool: store.activeTool,
+                    whiteboardModeEnabled: store.whiteboardModeEnabled,
+                    isSafeMode: runtimeState.isSafeMode
+                ),
+                annotationsLocked: store.annotationsLocked,
+                annotationsVisible: store.isVisible
+            ),
+            at: currentUptime
+        )
+        stateAnnouncementTask?.cancel()
+        stateAnnouncementTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  let self,
+                  let panel = self.panel,
+                  panel.isVisible,
+                  let snapshot = self.stateAnnouncementCoalescer.takeReady(
+                    at: ProcessInfo.processInfo.systemUptime
+                  ) else { return }
+            self.stateAccessibilityAnnouncer.announce(snapshot.message, from: panel)
+        }
     }
 
     func show() {
@@ -123,6 +196,10 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
     var currentFrame: CGRect? {
         panel?.frame
+    }
+
+    var accessibilityVerificationPanel: NSPanel? {
+        panel
     }
 
     var isFindPresentationNonAnimated: Bool {
@@ -220,6 +297,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         panel.animationBehavior = .none
         panel.delegate = self
         panel.isReleasedWhenClosed = false
+        panel.setAccessibilityIdentifier("toolbar.window")
 
         self.panel = panel
         updateLastLayoutState(preferences.snapshot)

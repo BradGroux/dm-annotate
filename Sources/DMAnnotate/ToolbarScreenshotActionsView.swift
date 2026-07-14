@@ -6,6 +6,7 @@ struct ToolbarScreenshotActionsView: View {
     @ObservedObject var preferences: PreferencesController
     var actions: ToolbarActions
     @State private var isScreenshotPopoverPresented = false
+    @Environment(\.toolbarAccessibilityState) private var accessibilityState
 
     var body: some View {
         iconButton("arrow.uturn.backward", active: false, enabled: store.canUndo, help: "Undo", shortcut: .undo) {
@@ -14,10 +15,26 @@ struct ToolbarScreenshotActionsView: View {
         iconButton("arrow.uturn.forward", active: false, enabled: store.canRedo, help: "Redo", shortcut: .redo) {
             store.redo()
         }
-        iconButton(store.annotationsLocked ? "lock.fill" : "lock.open", active: store.annotationsLocked, help: store.annotationsLocked ? "Unlock annotations" : "Lock annotations", shortcut: .toggleAnnotationLock) {
+        iconButton(
+            store.annotationsLocked ? "lock.fill" : "lock.open",
+            active: store.annotationsLocked,
+            help: store.annotationsLocked ? "Unlock annotations" : "Lock annotations",
+            accessibilityLabel: "Annotation lock",
+            value: accessibilityState.lockValue,
+            identifier: "toolbar.annotations-lock",
+            shortcut: .toggleAnnotationLock
+        ) {
             actions.toggleAnnotationLock()
         }
-        iconButton(store.isVisible ? "eye" : "eye.slash", active: false, help: "Show or hide annotations", shortcut: .toggleAnnotationVisibility) {
+        iconButton(
+            store.isVisible ? "eye" : "eye.slash",
+            active: !store.isVisible,
+            help: store.isVisible ? "Hide annotations" : "Show annotations",
+            accessibilityLabel: "Annotation visibility",
+            value: accessibilityState.visibilityValue,
+            identifier: "toolbar.annotations-visibility",
+            shortcut: .toggleAnnotationVisibility
+        ) {
             store.toggleVisibility()
         }
         if store.selectedAnnotationID != nil {
@@ -109,6 +126,9 @@ struct ToolbarScreenshotActionsView: View {
         active: Bool,
         enabled: Bool = true,
         help: String,
+        accessibilityLabel: String? = nil,
+        value: String = "",
+        identifier: String = "",
         shortcut: ShortcutAction? = nil,
         action: @escaping () -> Void
     ) -> some View {
@@ -118,7 +138,13 @@ struct ToolbarScreenshotActionsView: View {
         .buttonStyle(ToolbarIconButtonStyle(active: active, highContrast: preferences.snapshot.highContrastToolbar))
         .disabled(!enabled)
         .toolbarHelp(tooltip(help, action: shortcut))
-        .accessibilityLabel(help)
+        .toolbarAccessibility(accessibilityState.control(
+            label: accessibilityLabel ?? help,
+            value: value,
+            hint: tooltip(help, action: shortcut),
+            identifier: identifier,
+            isSelected: active
+        ))
     }
 
     private func tooltip(_ label: String, action: ShortcutAction?) -> String {
