@@ -377,6 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         }
 
         verifyToolbarLayouts(failures: &failures)
+        verifyFindToolbarPresentation(failures: &failures)
         verifySafeModeToolbarAvailability(failures: &failures)
         verifyCommandPaletteCommands(commands, failures: &failures)
         verifyToolbarPresetPreferences(failures: &failures)
@@ -387,6 +388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("dm-annotate UI smoke OK")
             print("- core windows visible")
             print("- toolbar layout states rendered")
+            print("- Find Toolbar stayed static across rapid invocation")
             print("- Safe Mode full and compact toolbar states rendered")
             print("- command palette actions generated")
             print("- toolbar preset preferences round-tripped")
@@ -421,6 +423,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             window: window,
             preferences: preferences
         ))
+    }
+
+    private func verifyFindToolbarPresentation(failures: inout [String]) {
+        toolbarWindowController.findToolbar()
+        let firstFrame = toolbarWindowController.currentFrame
+        toolbarWindowController.findToolbar()
+        settleWindows()
+
+        if toolbarWindowController.currentFrame != firstFrame {
+            failures.append("Find Toolbar moved the toolbar during rapid invocation.")
+        }
+        if !toolbarWindowController.isFindPresentationNonAnimated {
+            failures.append("Find Toolbar allows panel animation.")
+        }
     }
 
     private func verifyToolbarLayouts(failures: inout [String]) {
@@ -665,7 +681,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             CommandPaletteCommand(title: "Compact Presenter Mode", subtitle: "Switch compact toolbar layout", systemImage: "rectangle.compress.vertical") { [weak self] in
                 self?.toolbarWindowController.toggleCompactMode()
             },
-            CommandPaletteCommand(title: "Find Toolbar", subtitle: "Pulse the floating toolbar", systemImage: "scope") { [weak self] in
+            CommandPaletteCommand(title: "Find Toolbar", subtitle: "Bring the floating toolbar to front", systemImage: "scope") { [weak self] in
                 self?.toolbarWindowController.findToolbar()
             },
             CommandPaletteCommand(title: "Settings", subtitle: "Open app settings", systemImage: "gearshape") { [weak self] in

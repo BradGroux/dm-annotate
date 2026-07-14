@@ -18,12 +18,21 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     private var lastQuickColorCount: Int?
     private(set) var lastAppliedFrame: CGRect?
     private var suppressMovePersistenceUntil: Date?
+    private var lastFindAnnouncementUptime: TimeInterval?
+    private let findAccessibilityAnnouncer: any ToolbarFindAccessibilityAnnouncing
 
-    init(store: AnnotationStore, preferences: PreferencesController, runtimeState: AppRuntimeState, actions: ToolbarActions) {
+    init(
+        store: AnnotationStore,
+        preferences: PreferencesController,
+        runtimeState: AppRuntimeState,
+        actions: ToolbarActions,
+        findAccessibilityAnnouncer: any ToolbarFindAccessibilityAnnouncing = AppKitToolbarFindAccessibilityAnnouncer()
+    ) {
         self.store = store
         self.preferences = preferences
         self.runtimeState = runtimeState
         self.actions = actions
+        self.findAccessibilityAnnouncer = findAccessibilityAnnouncer
         super.init()
 
         preferences.$snapshot
@@ -42,32 +51,36 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        prepareToolbarForPresentation()?.orderFrontRegardless()
+    }
+
+    func findToolbar() {
+        guard let panel = prepareToolbarForPresentation() else { return }
+
+        let currentUptime = ProcessInfo.processInfo.systemUptime
+        let decision = ToolbarFindPresentationPolicy.decision(
+            reduceMotionEnabled: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+            currentUptime: currentUptime,
+            lastAnnouncementUptime: lastFindAnnouncementUptime
+        )
+
+        switch decision.presentation {
+        case .staticFrontmost:
+            panel.orderFrontRegardless()
+        }
+
+        if decision.shouldAnnounce {
+            lastFindAnnouncementUptime = currentUptime
+            findAccessibilityAnnouncer.announceToolbarFound(from: panel)
+        }
+    }
+
+    private func prepareToolbarForPresentation() -> NSPanel? {
         if panel == nil {
             makePanel()
         }
         resizeToFit(using: preferences.snapshot)
-        panel?.orderFrontRegardless()
-    }
-
-    func findToolbar() {
-        show()
-        guard let panel else { return }
-
-        let originalFrame = panel.frame
-        let shifted = originalFrame.offsetBy(dx: 14, dy: 0)
-        suppressMovePersistence(for: 0.35)
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.10
-            panel.animator().setFrame(shifted, display: true)
-        } completionHandler: {
-            Task { @MainActor in
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.10
-                    panel.animator().setFrame(originalFrame, display: true)
-                }
-            }
-        }
+        return panel
     }
 
     func toggleCollapsed() {
@@ -110,6 +123,10 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
 
     var currentFrame: CGRect? {
         panel?.frame
+    }
+
+    var isFindPresentationNonAnimated: Bool {
+        panel?.animationBehavior == NSWindow.AnimationBehavior.none
     }
 
     func temporarilyHideForCapture<T>(_ work: () -> T) -> T {
@@ -200,6 +217,7 @@ final class ToolbarWindowController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
+        panel.animationBehavior = .none
         panel.delegate = self
         panel.isReleasedWhenClosed = false
 

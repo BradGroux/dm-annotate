@@ -61,6 +61,8 @@ The app uses:
 
 Cursor mode is click-through. Select and drawing tools capture pointer input on the overlay.
 
+Find Toolbar is intentionally static for all current keyboard-capable and high-frequency entry points. It orders the panel front, queries Reduce Motion on each request, and rate-limits its VoiceOver announcement with monotonic uptime. It never schedules positional animation or a delayed frame reset, so rapid invocation cannot restore a stale frame.
+
 ## Privacy model
 
 Normal operation is local-only:

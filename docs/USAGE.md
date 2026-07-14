@@ -78,7 +78,7 @@ The floating toolbar supports:
 - Vertical and horizontal layouts.
 - Compact presenter mode.
 - Collapse/expand.
-- A find/pulse action if the toolbar gets lost.
+- A Find Toolbar action that brings the toolbar to the front without positional motion.
 - Local layout presets in Settings.
 - Tooltips on hover with shortcut labels where available.
 - A cyan border when the app is actively controlling pointer input.
