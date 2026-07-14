@@ -14,7 +14,7 @@ struct ToolbarToolSelectionView: View {
                     NSSound.beep()
                     return
                 }
-                store.setActiveTool(tool)
+                preferences.setActiveTool(tool)
             } label: {
                 ToolbarIcon(tool.systemImageName)
             }
@@ -28,9 +28,9 @@ struct ToolbarToolSelectionView: View {
     private func isActive(_ tool: AnnotationTool) -> Bool {
         switch tool {
         case .whiteboard:
-            return store.whiteboardModeEnabled && [.white, .lightGrid].contains(store.whiteboardBackground)
+            return store.whiteboardModeEnabled && !store.whiteboardBackground.isDarkBoard
         case .blackboard:
-            return store.whiteboardModeEnabled && [.black, .darkGrid].contains(store.whiteboardBackground)
+            return store.whiteboardModeEnabled && store.whiteboardBackground.isDarkBoard
         default:
             return store.activeTool == tool
         }

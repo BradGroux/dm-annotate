@@ -282,7 +282,7 @@ struct ToolbarContentView: View {
                         NSSound.beep()
                         return
                     }
-                    store.setActiveTool(tool)
+                    preferences.setActiveTool(tool)
                 } label: {
                     Label(tool.displayName, systemImage: tool.systemImageName)
                 }

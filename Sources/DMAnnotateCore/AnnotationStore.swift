@@ -73,10 +73,10 @@ public final class AnnotationStore: ObservableObject {
             clearSelection()
             return
         case .whiteboard:
-            toggleBoard(background: .white)
+            toggleBoard(tool: tool)
             return
         case .blackboard:
-            toggleBoard(background: .black)
+            toggleBoard(tool: tool)
             return
         default:
             activeTool = tool
@@ -472,13 +472,14 @@ public final class AnnotationStore: ObservableObject {
         }?.offset ?? 1
     }
 
-    private func toggleBoard(background: WhiteboardBackground) {
-        if whiteboardModeEnabled, whiteboardBackground == background {
+    private func toggleBoard(tool: AnnotationTool) {
+        let targetsDarkBoard = tool == .blackboard
+        if whiteboardModeEnabled, whiteboardBackground.isDarkBoard == targetsDarkBoard {
             whiteboardModeEnabled = false
             return
         }
 
-        whiteboardBackground = background
+        whiteboardBackground = whiteboardBackground.adapted(for: tool)
         whiteboardModeEnabled = true
         if activeTool == .cursor {
             activeTool = .pen

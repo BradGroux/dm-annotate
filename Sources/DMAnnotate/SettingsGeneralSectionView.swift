@@ -116,9 +116,9 @@ struct SettingsGeneralSectionView: View {
                 }
             }
 
-            SettingsGroup("Whiteboard") {
-                SettingsRow("Background") {
-                    Picker("Whiteboard background", selection: binding(\.whiteboardBackground)) {
+            SettingsGroup("Board Background") {
+                SettingsRow("Style") {
+                    Picker("Board background style", selection: binding(\.whiteboardBackground)) {
                         ForEach(WhiteboardBackground.allCases) { background in
                             Text(label(for: background)).tag(background)
                         }

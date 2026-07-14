@@ -14,6 +14,56 @@ private let settingsAXObserverCallback: AXObserverCallback = { _, _, notificatio
 
 @MainActor
 enum SettingsAccessibilitySmokeVerifier {
+    static func verifyBoardVisibility(window: NSWindow, preferences: PreferencesController) -> [String] {
+        var failures: [String] = []
+        let originalVisibility = preferences.snapshot.boardToolsVisible
+        defer {
+            preferences.update { $0.setBoardToolsVisible(originalVisibility) }
+            settle()
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        settle()
+
+        let applicationElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        guard let settingsWindowElement = settingsWindowElement(in: applicationElement),
+              let boardToggle = element(withIdentifier: "settings.tools.boardPair", under: settingsWindowElement) else {
+            failures.append("Settings accessibility smoke did not expose the paired board visibility control by AX identifier.")
+            return failures
+        }
+
+        if stringAttribute(kAXRoleAttribute, of: boardToggle) != kAXCheckBoxRole as String {
+            failures.append("Paired board visibility control AX role is not AXCheckBox.")
+        }
+        if accessibleName(of: boardToggle) != "Show Whiteboard and Blackboard tools" {
+            failures.append("Paired board visibility control does not name both affected toolbar tools.")
+        }
+        if !actionNames(of: boardToggle).contains(kAXPressAction as String) {
+            failures.append("Paired board visibility control does not expose AXPress.")
+            return failures
+        }
+
+        let pressError = AXUIElementPerformAction(boardToggle, kAXPressAction as CFString)
+        settle()
+        guard pressError == .success else {
+            failures.append("Paired board visibility control rejected AXPress (error \(pressError.rawValue)).")
+            return failures
+        }
+
+        let expectedVisibility = !originalVisibility
+        if preferences.snapshot.boardToolsVisible != expectedVisibility ||
+            preferences.snapshot.visibleTools.contains(.whiteboard) != expectedVisibility ||
+            preferences.snapshot.visibleTools.contains(.blackboard) != expectedVisibility {
+            failures.append("Paired board visibility control did not mutate Whiteboard and Blackboard atomically.")
+        }
+        if boolAttribute(kAXValueAttribute, of: boardToggle) != expectedVisibility {
+            failures.append("Paired board visibility control AX value did not reflect its persisted state.")
+        }
+
+        return failures
+    }
+
     static func verify(window: NSWindow, preferences: PreferencesController) -> [String] {
         var failures: [String] = []
         let originalShortcut = preferences.snapshot.shortcuts[.commandPalette] ?? ""

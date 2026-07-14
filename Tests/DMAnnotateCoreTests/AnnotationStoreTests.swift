@@ -734,21 +734,39 @@ private func heavyPerimeterPoints() -> [CGPoint] {
 }
 
 @MainActor
-@Test func boardToolsToggleWhiteAndBlackBackgrounds() {
-    let store = AnnotationStore()
+@Test func boardBackgroundVariantsSurviveOffOnCycles() {
+    for background in WhiteboardBackground.allCases {
+        let store = AnnotationStore(whiteboardBackground: background)
+        let tool: AnnotationTool = background.isDarkBoard ? .blackboard : .whiteboard
 
-    store.setActiveTool(.whiteboard)
-    #expect(store.whiteboardModeEnabled)
-    #expect(store.whiteboardBackground == .white)
-    #expect(store.activeTool == .pen)
+        store.setActiveTool(tool)
+        #expect(store.whiteboardModeEnabled)
+        #expect(store.whiteboardBackground == background)
+        #expect(store.activeTool == .pen)
 
-    store.setActiveTool(.blackboard)
-    #expect(store.whiteboardModeEnabled)
-    #expect(store.whiteboardBackground == .black)
-    #expect(store.activeTool == .pen)
+        store.setActiveTool(tool)
+        #expect(!store.whiteboardModeEnabled)
+        #expect(store.whiteboardBackground == background)
 
-    store.setActiveTool(.blackboard)
-    #expect(!store.whiteboardModeEnabled)
+        store.setActiveTool(tool)
+        #expect(store.whiteboardModeEnabled)
+        #expect(store.whiteboardBackground == background)
+    }
+}
+
+@MainActor
+@Test func boardFamilySwitchPreservesTheConfiguredSurfacePattern() {
+    let gridStore = AnnotationStore(whiteboardBackground: .lightGrid)
+    gridStore.setActiveTool(.blackboard)
+    #expect(gridStore.whiteboardBackground == .darkGrid)
+    gridStore.setActiveTool(.whiteboard)
+    #expect(gridStore.whiteboardBackground == .lightGrid)
+
+    let solidStore = AnnotationStore(whiteboardBackground: .white)
+    solidStore.setActiveTool(.blackboard)
+    #expect(solidStore.whiteboardBackground == .black)
+    solidStore.setActiveTool(.whiteboard)
+    #expect(solidStore.whiteboardBackground == .white)
 }
 
 @MainActor
@@ -1985,10 +2003,74 @@ private func heavyPerimeterPoints() -> [CGPoint] {
     #expect(compact.height < normal.height)
 }
 
+@Test func hidingBoardToolsShrinksCurrentFullToolbarLayoutsByExactlyTwoControls() {
+    let visibleFrame = CGRect(x: 0, y: 0, width: 3_000, height: 3_000)
+    let withBoardsVertical = PreferencesSnapshot(toolbarOrientation: .vertical)
+    var withoutBoardsVertical = withBoardsVertical
+    withoutBoardsVertical.setBoardToolsVisible(false)
+
+    let verticalWithBoards = ToolbarLayoutMetrics.preferredSize(
+        for: withBoardsVertical,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let verticalWithoutBoards = ToolbarLayoutMetrics.preferredSize(
+        for: withoutBoardsVertical,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    #expect(verticalWithBoards.height - verticalWithoutBoards.height == ToolbarLayoutMetrics.buttonSize + ToolbarLayoutMetrics.gridSpacing)
+
+    let withBoardsHorizontal = PreferencesSnapshot(toolbarOrientation: .horizontal)
+    var withoutBoardsHorizontal = withBoardsHorizontal
+    withoutBoardsHorizontal.setBoardToolsVisible(false)
+    let horizontalWithBoards = ToolbarLayoutMetrics.preferredSize(
+        for: withBoardsHorizontal,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let horizontalWithoutBoards = ToolbarLayoutMetrics.preferredSize(
+        for: withoutBoardsHorizontal,
+        visibleFrame: visibleFrame,
+        statusControlCount: 0
+    )
+    let expectedWidthDifference = 2 * (ToolbarLayoutMetrics.buttonSize + ToolbarLayoutMetrics.gridSpacing)
+    #expect(horizontalWithBoards.width - horizontalWithoutBoards.width == expectedWidthDifference)
+}
+
 @Test func visibleToolNormalizationKeepsRecoveryControlsAvailable() {
     #expect(PreferencesSnapshot.normalizedVisibleTools([]) == [.cursor, .pen])
     #expect(PreferencesSnapshot.normalizedVisibleTools([.whiteboard]) == [.cursor, .whiteboard, .blackboard])
     #expect(PreferencesSnapshot.normalizedVisibleTools([.blackboard]) == [.cursor, .whiteboard, .blackboard])
+}
+
+@Test func boardToolVisibilityMutatesThePairAtomically() {
+    var snapshot = PreferencesSnapshot()
+
+    snapshot.setBoardToolsVisible(false)
+    #expect(!snapshot.boardToolsVisible)
+    #expect(!snapshot.visibleTools.contains(.whiteboard))
+    #expect(!snapshot.visibleTools.contains(.blackboard))
+    #expect(snapshot.visibleTools.contains(.cursor))
+
+    snapshot.setBoardToolsVisible(true)
+    #expect(snapshot.boardToolsVisible)
+    #expect(snapshot.visibleTools.contains(.whiteboard))
+    #expect(snapshot.visibleTools.contains(.blackboard))
+}
+
+@Test func boardPreferencesRoundTripEveryBackgroundWithThePairHidden() throws {
+    for background in WhiteboardBackground.allCases {
+        var snapshot = PreferencesSnapshot(whiteboardBackground: background)
+        snapshot.setBoardToolsVisible(false)
+
+        let encoded = try JSONEncoder().encode(snapshot)
+        let restored = try JSONDecoder().decode(PreferencesSnapshot.self, from: encoded)
+
+        #expect(restored.whiteboardBackground == background)
+        #expect(!restored.boardToolsVisible)
+        #expect(restored.visibleTools.contains(.cursor))
+    }
 }
 
 private func expectSessionError(_ expected: AnnotationSessionError, operation: () throws -> Void) {

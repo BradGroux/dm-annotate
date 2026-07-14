@@ -203,31 +203,31 @@ final class ShortcutController: ObservableObject {
         case .findToolbar:
             actions.findToolbar()
         case .toggleAnnotationMode:
-            store.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
+            preferences.setActiveTool(store.activeTool == .cursor ? .pen : .cursor)
         case .cursorMode:
             store.exitScreenControls()
         case .selectTool:
-            store.setActiveTool(.select)
+            preferences.setActiveTool(.select)
         case .selectPen:
-            store.setActiveTool(.pen)
+            preferences.setActiveTool(.pen)
         case .selectHighlighter:
-            store.setActiveTool(.highlighter)
+            preferences.setActiveTool(.highlighter)
         case .selectEraser:
-            store.setActiveTool(.eraser)
+            preferences.setActiveTool(.eraser)
         case .selectLine:
-            store.setActiveTool(.line)
+            preferences.setActiveTool(.line)
         case .selectRectangle:
-            store.setActiveTool(.rectangle)
+            preferences.setActiveTool(.rectangle)
         case .selectEllipse:
-            store.setActiveTool(.ellipse)
+            preferences.setActiveTool(.ellipse)
         case .selectArrow:
-            store.setActiveTool(.arrow)
+            preferences.setActiveTool(.arrow)
         case .selectText:
-            store.setActiveTool(.text)
+            preferences.setActiveTool(.text)
         case .selectLaser:
-            store.setActiveTool(.laser)
+            preferences.setActiveTool(.laser)
         case .toggleWhiteboard:
-            store.setActiveTool(.whiteboard)
+            preferences.setActiveTool(.whiteboard)
         case .toggleAnnotationLock:
             store.toggleAnnotationLock()
         case .toggleAnnotationVisibility:
