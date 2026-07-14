@@ -24,7 +24,7 @@ enum AnnotationRenderer {
     static func draw(_ annotation: AnnotationItem, strokePath cachedStrokePath: NSBezierPath? = nil) {
         let color = NSColor(annotation.color)
         let path = NSBezierPath()
-        path.lineWidth = annotation.kind == .highlighter ? annotation.lineWidth * 3 : annotation.lineWidth
+        path.lineWidth = annotation.paintedStrokeWidth
         path.lineCapStyle = .round
         path.lineJoinStyle = .round
 
@@ -42,7 +42,7 @@ enum AnnotationRenderer {
             color.withAlphaComponent(annotation.kind == .highlighter ? 0.34 : color.alphaComponent).setStroke()
             strokePath.stroke()
         case .line:
-            drawLine(annotation.points, color: color, width: annotation.lineWidth)
+            drawLine(annotation.points, color: color, width: annotation.paintedStrokeWidth)
         case .rectangle:
             guard annotation.points.count >= 2 else { return }
             let rect = annotation.points.boundingRect
@@ -56,7 +56,7 @@ enum AnnotationRenderer {
             path.appendOval(in: rect)
             path.stroke()
         case .arrow:
-            drawArrow(annotation.points, color: color, width: annotation.lineWidth)
+            drawArrow(annotation, color: color)
         case .text:
             drawText(annotation)
         }
@@ -67,19 +67,15 @@ enum AnnotationRenderer {
         guard let first = points.first else { return path }
 
         path.move(to: first)
-        if points.count > 2 {
-            for index in 1..<(points.count - 1) {
-                let current = points[index]
-                let next = points[index + 1]
-                let midpoint = CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2)
-                path.curve(to: midpoint, controlPoint1: current, controlPoint2: current)
-            }
-            if let last = points.last {
-                path.line(to: last)
-            }
-        } else {
-            for point in points.dropFirst() {
-                path.line(to: point)
+        let geometry = AnnotationStrokeGeometry.smoothed(points: points)
+        for index in 0..<geometry.segmentCount {
+            switch geometry.segment(at: index) {
+            case .line(_, let end):
+                path.line(to: end)
+            case .cubic(_, let control1, let control2, let end):
+                path.curve(to: end, controlPoint1: control1, controlPoint2: control2)
+            case nil:
+                continue
             }
         }
         return path
@@ -148,32 +144,17 @@ enum AnnotationRenderer {
         NSBezierPath(ovalIn: rect).fill()
     }
 
-    private static func drawArrow(_ points: [CGPoint], color: NSColor, width: CGFloat) {
-        guard points.count >= 2 else { return }
-        drawLine(points, color: color, width: width)
-
-        let start = points[0]
-        let end = points[1]
-        let angle = atan2(end.y - start.y, end.x - start.x)
-        let arrowLength = max(width * 4, 18)
-        let arrowAngle = CGFloat.pi / 7
-
-        let left = CGPoint(
-            x: end.x - arrowLength * cos(angle - arrowAngle),
-            y: end.y - arrowLength * sin(angle - arrowAngle)
-        )
-        let right = CGPoint(
-            x: end.x - arrowLength * cos(angle + arrowAngle),
-            y: end.y - arrowLength * sin(angle + arrowAngle)
-        )
+    private static func drawArrow(_ annotation: AnnotationItem, color: NSColor) {
+        guard let arrowHead = annotation.arrowHeadPoints else { return }
+        drawLine(annotation.points, color: color, width: annotation.paintedStrokeWidth)
 
         let head = NSBezierPath()
-        head.lineWidth = width
+        head.lineWidth = annotation.paintedStrokeWidth
         head.lineCapStyle = .round
         head.lineJoinStyle = .round
-        head.move(to: left)
-        head.line(to: end)
-        head.line(to: right)
+        head.move(to: arrowHead.left)
+        head.line(to: arrowHead.tip)
+        head.line(to: arrowHead.right)
         color.setStroke()
         head.stroke()
     }

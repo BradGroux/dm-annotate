@@ -295,7 +295,260 @@ public enum TextFontWeight: String, CaseIterable, Codable, Hashable, Identifiabl
     }
 }
 
+public struct AnnotationArrowHead: Equatable, Sendable {
+    public var left: CGPoint
+    public var tip: CGPoint
+    public var right: CGPoint
+
+    public init(left: CGPoint, tip: CGPoint, right: CGPoint) {
+        self.left = left
+        self.tip = tip
+        self.right = right
+    }
+
+    public var points: [CGPoint] {
+        [left, tip, right]
+    }
+}
+
+public enum AnnotationStrokeSegment: Equatable, Sendable {
+    case line(start: CGPoint, end: CGPoint)
+    case cubic(start: CGPoint, control1: CGPoint, control2: CGPoint, end: CGPoint)
+
+    public var start: CGPoint {
+        switch self {
+        case .line(let start, _), .cubic(let start, _, _, _):
+            start
+        }
+    }
+
+    public var end: CGPoint {
+        switch self {
+        case .line(_, let end), .cubic(_, _, _, let end):
+            end
+        }
+    }
+
+    public var controlBounds: CGRect {
+        switch self {
+        case .line(let start, let end):
+            return Self.bounds(start, end)
+        case .cubic(let start, let control1, let control2, let end):
+            return Self.bounds(start, control1, control2, end)
+        }
+    }
+
+    fileprivate func isHit(by point: CGPoint, tolerance: CGFloat) -> Bool {
+        switch self {
+        case .line(let start, let end):
+            return Self.distance(from: point, toSegmentStart: start, end: end) <= tolerance
+        case .cubic(let start, let control1, let control2, let end):
+            return Self.cubicIsHit(
+                by: point,
+                start: start,
+                control1: control1,
+                control2: control2,
+                end: end,
+                tolerance: tolerance,
+                depth: 0
+            )
+        }
+    }
+
+    private static let curveFlatness: CGFloat = 0.25
+    private static let maximumSubdivisionDepth = 12
+
+    private static func cubicIsHit(
+        by point: CGPoint,
+        start: CGPoint,
+        control1: CGPoint,
+        control2: CGPoint,
+        end: CGPoint,
+        tolerance: CGFloat,
+        depth: Int
+    ) -> Bool {
+        let bounds = Self.bounds(start, control1, control2, end)
+        let expandedBounds = bounds.expanded(by: tolerance + curveFlatness)
+        guard !expandedBounds.isNull,
+              point.x >= expandedBounds.minX,
+              point.x <= expandedBounds.maxX,
+              point.y >= expandedBounds.minY,
+              point.y <= expandedBounds.maxY else {
+            return false
+        }
+
+        let flatness = cubicFlatness(start, control1, control2, end)
+        if depth >= maximumSubdivisionDepth || flatness <= curveFlatness {
+            return distance(from: point, toSegmentStart: start, end: end) <= tolerance + flatness
+        }
+
+        let startControl = midpoint(start, control1)
+        let controlsMidpoint = midpoint(control1, control2)
+        let controlEnd = midpoint(control2, end)
+        let leftControl = midpoint(startControl, controlsMidpoint)
+        let rightControl = midpoint(controlsMidpoint, controlEnd)
+        let split = midpoint(leftControl, rightControl)
+
+        return cubicIsHit(
+            by: point,
+            start: start,
+            control1: startControl,
+            control2: leftControl,
+            end: split,
+            tolerance: tolerance,
+            depth: depth + 1
+        ) || cubicIsHit(
+            by: point,
+            start: split,
+            control1: rightControl,
+            control2: controlEnd,
+            end: end,
+            tolerance: tolerance,
+            depth: depth + 1
+        )
+    }
+
+    private static func cubicFlatness(
+        _ start: CGPoint,
+        _ control1: CGPoint,
+        _ control2: CGPoint,
+        _ end: CGPoint
+    ) -> CGFloat {
+        max(
+            distance(from: control1, toSegmentStart: start, end: end),
+            distance(from: control2, toSegmentStart: start, end: end)
+        )
+    }
+
+    private static func distance(from point: CGPoint, toSegmentStart start: CGPoint, end: CGPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        guard dx != 0 || dy != 0 else { return hypot(point.x - start.x, point.y - start.y) }
+        let t = max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)))
+        return hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy))
+    }
+
+    private static func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
+        CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
+    }
+
+    private static func bounds(_ first: CGPoint, _ second: CGPoint) -> CGRect {
+        CGRect(
+            x: min(first.x, second.x),
+            y: min(first.y, second.y),
+            width: abs(first.x - second.x),
+            height: abs(first.y - second.y)
+        )
+    }
+
+    private static func bounds(
+        _ first: CGPoint,
+        _ second: CGPoint,
+        _ third: CGPoint,
+        _ fourth: CGPoint
+    ) -> CGRect {
+        let minX = min(min(first.x, second.x), min(third.x, fourth.x))
+        let minY = min(min(first.y, second.y), min(third.y, fourth.y))
+        let maxX = max(max(first.x, second.x), max(third.x, fourth.x))
+        let maxY = max(max(first.y, second.y), max(third.y, fourth.y))
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+}
+
+public struct AnnotationStrokeGeometry: Equatable, Sendable {
+    private enum Interpolation: Equatable, Sendable {
+        case smoothed
+        case firstLine
+    }
+
+    private let points: [CGPoint]
+    private let interpolation: Interpolation
+
+    public static func smoothed(points: [CGPoint]) -> AnnotationStrokeGeometry {
+        AnnotationStrokeGeometry(points: points, interpolation: .smoothed)
+    }
+
+    public static func firstLine(points: [CGPoint]) -> AnnotationStrokeGeometry {
+        AnnotationStrokeGeometry(points: points, interpolation: .firstLine)
+    }
+
+    public var segmentCount: Int {
+        guard points.count > 1 else { return 0 }
+        return switch interpolation {
+        case .smoothed:
+            points.count - 1
+        case .firstLine:
+            1
+        }
+    }
+
+    public func segment(at index: Int) -> AnnotationStrokeSegment? {
+        guard index >= 0, index < segmentCount else { return nil }
+        switch interpolation {
+        case .firstLine:
+            return .line(start: points[0], end: points[1])
+        case .smoothed:
+            guard points.count > 2 else {
+                return .line(start: points[0], end: points[1])
+            }
+            if index == segmentCount - 1 {
+                return .line(
+                    start: Self.midpoint(points[points.count - 2], points[points.count - 1]),
+                    end: points[points.count - 1]
+                )
+            }
+
+            let controlIndex = index + 1
+            let start = index == 0
+                ? points[0]
+                : Self.midpoint(points[index], points[index + 1])
+            let control = points[controlIndex]
+            return .cubic(
+                start: start,
+                control1: control,
+                control2: control,
+                end: Self.midpoint(control, points[controlIndex + 1])
+            )
+        }
+    }
+
+    public func bounds(segmentRange: Range<Int>? = nil) -> CGRect? {
+        let available = 0..<segmentCount
+        let range = (segmentRange ?? available).clamped(to: available)
+        var result: CGRect?
+        for index in range {
+            guard let bounds = segment(at: index)?.controlBounds else { continue }
+            result = result.map { $0.union(bounds) } ?? bounds
+        }
+        return result
+    }
+
+    public func hitTest(
+        at point: CGPoint,
+        tolerance: CGFloat,
+        segmentRange: Range<Int>? = nil
+    ) -> AnnotationHitTestResult {
+        let available = 0..<segmentCount
+        let range = (segmentRange ?? available).clamped(to: available)
+        var examined = 0
+        for index in range {
+            guard let segment = segment(at: index) else { continue }
+            examined += 1
+            if segment.isHit(by: point, tolerance: tolerance) {
+                return AnnotationHitTestResult(isHit: true, segmentsExamined: examined)
+            }
+        }
+        return AnnotationHitTestResult(isHit: false, segmentsExamined: examined)
+    }
+
+    private static func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
+        CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
+    }
+}
+
 public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
+    private static let paintedAntialiasTolerance: CGFloat = 1
+
     public var id: UUID
     public var displayID: UInt32
     public var kind: AnnotationKind
@@ -384,16 +637,68 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
         return (crossProduct * crossProduct) / chordLengthSquared
     }
 
+    public var paintedStrokeWidth: CGFloat {
+        let baseWidth = max(lineWidth, 0)
+        return kind == .highlighter ? baseWidth * 3 : baseWidth
+    }
+
+    public var paintedStrokeRadius: CGFloat {
+        paintedStrokeWidth / 2
+    }
+
+    public var strokeGeometry: AnnotationStrokeGeometry {
+        switch kind {
+        case .pen, .highlighter:
+            .smoothed(points: points)
+        case .line:
+            .firstLine(points: points)
+        default:
+            .firstLine(points: [])
+        }
+    }
+
+    public var arrowHeadPoints: AnnotationArrowHead? {
+        guard kind == .arrow, points.count >= 2 else { return nil }
+
+        let start = points[0]
+        let tip = points[1]
+        let angle = atan2(tip.y - start.y, tip.x - start.x)
+        let arrowLength = max(paintedStrokeWidth * 4, 18)
+        let arrowAngle = CGFloat.pi / 7
+        let left = CGPoint(
+            x: tip.x - arrowLength * cos(angle - arrowAngle),
+            y: tip.y - arrowLength * sin(angle - arrowAngle)
+        )
+        let right = CGPoint(
+            x: tip.x - arrowLength * cos(angle + arrowAngle),
+            y: tip.y - arrowLength * sin(angle + arrowAngle)
+        )
+        return AnnotationArrowHead(left: left, tip: tip, right: right)
+    }
+
+    var paintedLineHitTolerance: CGFloat {
+        paintedStrokeRadius + Self.paintedAntialiasTolerance
+    }
+
+    func paintedHitTolerance(interactionRadius: CGFloat) -> CGFloat {
+        max(interactionRadius, 0) + paintedLineHitTolerance
+    }
+
     public var boundingRect: CGRect {
         switch kind {
         case .pen:
-            return points.boundingRect.expanded(by: max(lineWidth, 8))
+            return (strokeGeometry.bounds() ?? points.boundingRect).expanded(by: max(paintedLineHitTolerance, 8))
         case .highlighter:
-            return points.boundingRect.expanded(by: max(lineWidth * 3, 8))
-        case .line, .rectangle, .ellipse:
+            return (strokeGeometry.bounds() ?? points.boundingRect).expanded(by: max(paintedLineHitTolerance, 8))
+        case .line:
+            guard let bounds = strokeGeometry.bounds() else { return .zero }
+            return bounds.expanded(by: max(paintedLineHitTolerance, 8))
+        case .rectangle, .ellipse:
             return points.boundingRect.expanded(by: max(lineWidth, 8))
         case .arrow:
-            return points.boundingRect.expanded(by: max(lineWidth * 4, 18) + lineWidth)
+            guard let arrowHeadPoints else { return .zero }
+            let paintedPoints = Array(points.prefix(2)) + arrowHeadPoints.points
+            return paintedPoints.boundingRect.expanded(by: max(paintedLineHitTolerance, 8))
         case .text:
             guard let point = points.first else { return .zero }
             let lines = text.components(separatedBy: .newlines)
@@ -416,10 +721,30 @@ public struct AnnotationItem: Identifiable, Codable, Equatable, Sendable {
         }
 
         switch kind {
-        case .pen, .highlighter:
-            return points.lineSegmentHitTest(point, tolerance: max(radius, lineWidth))
-        case .line, .arrow:
-            return points.lineSegmentHitTest(point, tolerance: max(radius, lineWidth))
+        case .pen:
+            guard points.count > 1 else {
+                return points.lineSegmentHitTest(point, tolerance: paintedHitTolerance(interactionRadius: radius))
+            }
+            return strokeGeometry.hitTest(at: point, tolerance: paintedHitTolerance(interactionRadius: radius))
+        case .highlighter:
+            guard points.count > 1 else {
+                return points.lineSegmentHitTest(point, tolerance: paintedHitTolerance(interactionRadius: radius))
+            }
+            return strokeGeometry.hitTest(at: point, tolerance: paintedHitTolerance(interactionRadius: radius))
+        case .line:
+            return strokeGeometry.hitTest(at: point, tolerance: paintedHitTolerance(interactionRadius: radius))
+        case .arrow:
+            guard let arrowHeadPoints else {
+                return AnnotationHitTestResult(isHit: false, segmentsExamined: 0)
+            }
+            let tolerance = paintedHitTolerance(interactionRadius: radius)
+            let shaft = Array(points.prefix(2)).lineSegmentHitTest(point, tolerance: tolerance)
+            guard !shaft.isHit else { return shaft }
+            let head = arrowHeadPoints.points.lineSegmentHitTest(point, tolerance: tolerance)
+            return AnnotationHitTestResult(
+                isHit: head.isHit,
+                segmentsExamined: shaft.segmentsExamined + head.segmentsExamined
+            )
         case .rectangle, .ellipse, .text:
             return AnnotationHitTestResult(
                 isHit: boundingRect.expanded(by: radius).contains(point),
