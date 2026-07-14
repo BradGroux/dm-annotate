@@ -25,6 +25,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 - Name shortcut recovery consistently as Restart Shortcut Monitoring without implying that a permission or shortcut test occurred.
 - Crop region screenshots before allocating the annotated output, remove the TIFF-to-PNG round trip, and move PNG encoding and file writes off the main actor.
 - Focus command search on open and support immediate Up/Down selection, Return execution, Escape cancellation, empty results, and VoiceOver selection announcements.
+- Share highlighter and arrow paint geometry across rendering, bounds, selection, hit testing, and erasing so visible strokes remain interactive.
 
 ## 0.1.12 - 2026-05-31
 

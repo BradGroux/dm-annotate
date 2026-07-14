@@ -561,13 +561,14 @@ public final class AnnotationStore: ObservableObject {
                 segmentsExamined += result.segmentsExamined
                 isHit = result.isHit
             } else {
-                let tolerance = max(radius, item.lineWidth)
+                let geometry = item.strokeGeometry
+                let tolerance = item.paintedHitTolerance(interactionRadius: radius)
                 var matched = false
                 for chunk in work.segmentChunks {
                     chunksExamined += 1
                     guard chunk.bounds.expanded(by: tolerance).containsInclusively(point) else { continue }
-                    let result = item.points.lineSegmentHitTest(
-                        point,
+                    let result = geometry.hitTest(
+                        at: point,
                         tolerance: tolerance,
                         segmentRange: chunk.segmentRange
                     )
@@ -674,34 +675,21 @@ private struct AnnotationWorkIndex {
     init(annotation: AnnotationItem) {
         bounds = annotation.boundingRect
         guard annotation.kind == .pen || annotation.kind == .highlighter ||
-                annotation.kind == .line || annotation.kind == .arrow,
+                annotation.kind == .line,
               annotation.points.count > 1 else {
             segmentChunks = []
             return
         }
 
-        let segmentCount = annotation.points.count - 1
+        let geometry = annotation.strokeGeometry
+        let segmentCount = geometry.segmentCount
         segmentChunks = stride(from: 0, to: segmentCount, by: Self.segmentsPerChunk).map { start in
             let end = min(start + Self.segmentsPerChunk, segmentCount)
             return SegmentChunk(
-                bounds: Self.bounds(for: annotation.points, from: start, through: end),
+                bounds: geometry.bounds(segmentRange: start..<end) ?? .zero,
                 segmentRange: start..<end
             )
         }
-    }
-
-    private static func bounds(for points: [CGPoint], from start: Int, through end: Int) -> CGRect {
-        var minX = points[start].x
-        var minY = points[start].y
-        var maxX = minX
-        var maxY = minY
-        for index in (start + 1)...end {
-            minX = min(minX, points[index].x)
-            minY = min(minY, points[index].y)
-            maxX = max(maxX, points[index].x)
-            maxY = max(maxY, points[index].y)
-        }
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 }
 

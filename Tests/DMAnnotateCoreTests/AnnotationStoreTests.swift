@@ -240,7 +240,7 @@ private func heavyPerimeterPoints() -> [CGPoint] {
 
     #expect(work.annotationsExamined == 2)
     #expect(work.boundsCandidates == 1)
-    #expect(work.segmentsExamined == 2)
+    #expect(work.segmentsExamined == 1)
     #expect(work.annotationsRemoved == 1)
     #expect(store.annotations == [missed])
 
@@ -308,6 +308,222 @@ private func heavyPerimeterPoints() -> [CGPoint] {
     let arrowheadEdge = CGRect(x: 63, y: 16, width: 2, height: 2)
     #expect(store.annotations(intersecting: arrowheadEdge, displayID: 1) == [arrow, text])
     #expect(store.annotations(intersecting: CGRect(x: -10_000, y: -10_000, width: 1, height: 1), displayID: 1) == [text])
+}
+
+@Test func highlighterPaintGeometryDrivesBoundsAndHitTesting() {
+    let highlighter = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .yellow,
+        lineWidth: 64
+    )
+
+    #expect(highlighter.paintedStrokeWidth == 192)
+    #expect(highlighter.boundingRect == CGRect(x: -97, y: -97, width: 294, height: 194))
+    #expect(highlighter.touches(CGPoint(x: 50, y: 96), radius: 0))
+    #expect(highlighter.touches(CGPoint(x: 50, y: 105), radius: 8))
+    #expect(!highlighter.touches(CGPoint(x: 50, y: 105.5), radius: 8))
+}
+
+@Test func penAndLineInteractionUsePaintedRadiusInsteadOfFullStrokeWidth() {
+    let pen = AnnotationItem(
+        displayID: 1,
+        kind: .pen,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 64
+    )
+    let line = AnnotationItem(
+        displayID: 1,
+        kind: .line,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .blue,
+        lineWidth: 64
+    )
+
+    for annotation in [pen, line] {
+        #expect(annotation.paintedStrokeRadius == 32)
+        #expect(annotation.boundingRect.minY == -33)
+        #expect(annotation.boundingRect.maxY == 33)
+        #expect(annotation.touches(CGPoint(x: 50, y: 35), radius: 2))
+        #expect(!annotation.touches(CGPoint(x: 50, y: 35.5), radius: 2))
+        #expect(!annotation.touches(CGPoint(x: 50, y: 60), radius: 2))
+        #expect(annotation.touches(CGPoint(x: 50, y: 47), radius: 14))
+        #expect(!annotation.touches(CGPoint(x: 50, y: 47.5), radius: 14))
+    }
+}
+
+@Test func curvedHighlighterCenterlineDrivesThinAndMaximumWidthHitTesting() {
+    let thin = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 200, y: 0), CGPoint(x: 200, y: 100)],
+        color: .yellow,
+        lineWidth: 1
+    )
+    let maximumWidth = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 2_000, y: 0), CGPoint(x: 2_000, y: 2_000)],
+        color: .yellow,
+        lineWidth: 64
+    )
+
+    // These are t=0.5 centerline points on the renderer's first cubic segment.
+    #expect(thin.touches(CGPoint(x: 175, y: 6.25), radius: 0))
+    #expect(maximumWidth.touches(CGPoint(x: 1_750, y: 125), radius: 0))
+
+    let thinNormal = CGVector(dx: -1 / sqrt(17), dy: 4 / sqrt(17))
+    let outsideThinStroke = CGPoint(
+        x: 175 + thinNormal.dx * 4,
+        y: 6.25 + thinNormal.dy * 4
+    )
+    #expect(!thin.touches(outsideThinStroke, radius: 0))
+
+    let normal = CGVector(dx: -1 / sqrt(5), dy: 2 / sqrt(5))
+    let outsideMaximumStroke = CGPoint(
+        x: 1_750 + normal.dx * 100,
+        y: 125 + normal.dy * 100
+    )
+    #expect(!maximumWidth.touches(outsideMaximumStroke, radius: 0))
+}
+
+@MainActor
+@Test func curvedHighlighterCrossingChunkBoundaryRemainsErasableWithBoundedWork() {
+    var points = (0..<63).map { CGPoint(x: CGFloat($0 - 63) * 100, y: 0) }
+    points.append(contentsOf: [
+        CGPoint(x: 0, y: 0),
+        CGPoint(x: 100, y: 0),
+        CGPoint(x: 100, y: 100)
+    ])
+    let highlighter = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: points,
+        color: .yellow,
+        lineWidth: 1
+    )
+    let store = AnnotationStore(annotations: [highlighter])
+
+    let segment63 = store.eraseWork(at: CGPoint(x: 93.75, y: 6.25), radius: 0, displayID: 1)
+    let seam = store.eraseWork(at: CGPoint(x: 100, y: 50), radius: 0, displayID: 1)
+    let segment64 = store.eraseWork(at: CGPoint(x: 100, y: 75), radius: 0, displayID: 1)
+
+    #expect(segment63.annotationsRemoved == 1)
+    #expect(segment63.chunksExamined == 1)
+    #expect(segment63.segmentsExamined == 64)
+
+    #expect(seam.annotationsRemoved == 1)
+    #expect(seam.chunksExamined == 1)
+    #expect(seam.segmentsExamined == 64)
+
+    #expect(segment64.annotationsRemoved == 1)
+    #expect(segment64.chunksExamined == 2)
+    #expect(segment64.segmentsExamined == 1)
+}
+
+@Test func arrowPaintGeometryDrivesBoundsAndHeadHitTesting() throws {
+    let arrow = AnnotationItem(
+        displayID: 1,
+        kind: .arrow,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .red,
+        lineWidth: 20
+    )
+    let head = try #require(arrow.arrowHeadPoints)
+    let expectedLeft = CGPoint(
+        x: 100 - 80 * cos(CGFloat.pi / 7),
+        y: 80 * sin(CGFloat.pi / 7)
+    )
+    let expectedRight = CGPoint(
+        x: 100 - 80 * cos(CGFloat.pi / 7),
+        y: -80 * sin(CGFloat.pi / 7)
+    )
+
+    #expect(abs(head.left.x - expectedLeft.x) < 0.0001)
+    #expect(abs(head.left.y - expectedLeft.y) < 0.0001)
+    #expect(abs(head.right.x - expectedRight.x) < 0.0001)
+    #expect(abs(head.right.y - expectedRight.y) < 0.0001)
+    #expect(arrow.boundingRect.maxY >= head.left.y + 11)
+    #expect(arrow.boundingRect.minY <= head.right.y - 11)
+    #expect(arrow.touches(head.left, radius: 0))
+    #expect(arrow.touches(head.right, radius: 0))
+
+    let leftDirection = CGVector(dx: head.left.x - head.tip.x, dy: head.left.y - head.tip.y)
+    let length = hypot(leftDirection.dx, leftDirection.dy)
+    let beyondRoundCap = CGPoint(
+        x: head.left.x + leftDirection.dx / length * 11.5,
+        y: head.left.y + leftDirection.dy / length * 11.5
+    )
+    #expect(!arrow.touches(beyondRoundCap, radius: 0))
+}
+
+@Test func degenerateArrowUsesTheSameMinimumHeadGeometryAsRendering() throws {
+    let arrow = AnnotationItem(
+        displayID: 1,
+        kind: .arrow,
+        points: [CGPoint(x: 50, y: 50), CGPoint(x: 50, y: 50)],
+        color: .red,
+        lineWidth: 2
+    )
+    let head = try #require(arrow.arrowHeadPoints)
+
+    #expect(abs(hypot(head.left.x - head.tip.x, head.left.y - head.tip.y) - 18) < 0.0001)
+    #expect(arrow.touches(head.left, radius: 0))
+    #expect(arrow.touches(head.right, radius: 0))
+    #expect(arrow.boundingRect.contains(head.left))
+    #expect(arrow.boundingRect.contains(head.right))
+}
+
+@Test func lineAndArrowInteractionIgnoreGeometryTheRendererDoesNotPaint() {
+    let incompleteArrow = AnnotationItem(
+        displayID: 1,
+        kind: .arrow,
+        points: [CGPoint(x: 40, y: 40)],
+        color: .red,
+        lineWidth: 4
+    )
+    let lineWithExtraPoint = AnnotationItem(
+        displayID: 1,
+        kind: .line,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0), CGPoint(x: 1_000, y: 1_000)],
+        color: .blue,
+        lineWidth: 4
+    )
+
+    #expect(incompleteArrow.boundingRect == .zero)
+    #expect(!incompleteArrow.touches(CGPoint(x: 40, y: 40), radius: 8))
+    #expect(lineWithExtraPoint.boundingRect.maxX < 1_000)
+    #expect(!lineWithExtraPoint.touches(CGPoint(x: 1_000, y: 1_000), radius: 8))
+}
+
+@MainActor
+@Test func eraserUsesPaintedHighlighterAndArrowheadGeometry() throws {
+    let highlighter = AnnotationItem(
+        displayID: 1,
+        kind: .highlighter,
+        points: [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)],
+        color: .yellow,
+        lineWidth: 64
+    )
+    let arrow = AnnotationItem(
+        displayID: 1,
+        kind: .arrow,
+        points: [CGPoint(x: 200, y: 0), CGPoint(x: 300, y: 0)],
+        color: .red,
+        lineWidth: 20
+    )
+    let arrowHead = try #require(arrow.arrowHeadPoints)
+    let store = AnnotationStore(annotations: [highlighter, arrow])
+
+    let highlighterWork = store.erase(at: CGPoint(x: 50, y: 96), radius: 0, displayID: 1)
+    #expect(highlighterWork.annotationsRemoved == 1)
+    #expect(store.annotations == [arrow])
+
+    let arrowWork = store.erase(at: arrowHead.left, radius: 0, displayID: 1)
+    #expect(arrowWork.annotationsRemoved == 1)
+    #expect(store.annotations.isEmpty)
 }
 
 @MainActor
