@@ -32,6 +32,9 @@ struct SettingsView: View {
         }
         .frame(minWidth: 900, minHeight: 620)
         .background(Color(nsColor: .windowBackgroundColor))
+        .transaction { transaction in
+            transaction.animation = nil
+        }
     }
 
     private var sidebar: some View {
@@ -43,6 +46,10 @@ struct SettingsView: View {
                 .padding(.bottom, 6)
 
             ForEach(SettingsSection.allCases) { section in
+                let accessibilityState = SettingsSidebarAccessibilityState(
+                    sectionTitle: section.title,
+                    isSelected: selectedSection == section
+                )
                 Button {
                     selectedSection = section
                 } label: {
@@ -57,6 +64,10 @@ struct SettingsView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(accessibilityState.label)
+                .accessibilityValue(accessibilityState.value)
+                .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
+                .accessibilityIdentifier("settings.section.\(section.rawValue)")
             }
 
             Spacer()
@@ -64,6 +75,8 @@ struct SettingsView: View {
         .padding(12)
         .frame(width: 190)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Settings sections")
     }
 
     private var contentPane: some View {
@@ -72,6 +85,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(selectedSection.title)
                         .font(.system(size: 28, weight: .semibold))
+                        .accessibilityAddTraits(.isHeader)
                     Text(selectedSection.subtitle)
                         .font(.callout)
                         .foregroundStyle(.secondary)

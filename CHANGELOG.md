@@ -20,6 +20,7 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 - Adapt selected toolbar, settings sidebar, stroke-width, and text-size controls to the native macOS selected-control palette with measured foreground contrast across every standard accent.
 - Enforce Safe Mode annotation-tool availability consistently across full, compact, and collapsed toolbar recovery states.
+- Give Settings controls explicit labels, selected state, row-specific actions, and an actionable shortcut recorder that announces assigned, recording, conflict, rejected, and unassigned states to VoiceOver.
 - Publish portable SHA256 sidecars that standard verification tools can validate from any download directory.
 - Validate annotation sessions before atomic export, preserve existing files on failed saves, and bound live stroke points so saved sessions always remain reloadable.
 - Report Input Monitoring through the supported listen-event APIs, request it only from an explicit action, and rebuild global shortcut monitoring after app activation.

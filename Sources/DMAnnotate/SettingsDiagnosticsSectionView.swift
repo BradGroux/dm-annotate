@@ -35,9 +35,11 @@ struct SettingsDiagnosticsSectionView: View {
                 Button("Open Permissions") {
                     SystemSettings.open(.screenRecording)
                 }
+                .accessibilityLabel("Open Screen Recording settings")
                 Button("Reveal Screenshot Folder") {
                     NSWorkspace.shared.activateFileViewerSelecting([preferences.expandedScreenshotFolderURL()])
                 }
+                .accessibilityLabel("Reveal screenshot folder in Finder")
                 Button(ShortcutRecoveryPresentation.actionLabel) {
                     shortcutController.restart()
                 }

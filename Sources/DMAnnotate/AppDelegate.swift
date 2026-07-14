@@ -378,6 +378,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         verifyCommandPaletteCommands(commands, failures: &failures)
         verifyToolbarPresetPreferences(failures: &failures)
         verifyScreenshotFeedback(failures: &failures)
+        verifySettingsAccessibility(failures: &failures)
 
         if failures.isEmpty {
             print("dm-annotate UI smoke OK")
@@ -387,6 +388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("- command palette actions generated")
             print("- toolbar preset preferences round-tripped")
             print("- screenshot feedback rendered without animation")
+            print("- Settings live accessibility tree and keyboard loop verified")
             NSApp.terminate(nil)
             return
         }
@@ -401,6 +403,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     private func settleWindows() {
         NSApp.updateWindows()
         RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.10))
+    }
+
+    private func verifySettingsAccessibility(failures: inout [String]) {
+        settingsWindowController.show(section: .shortcuts)
+        settleWindows()
+
+        guard let window = settingsWindowController.accessibilityVerificationWindow else {
+            failures.append("Settings accessibility smoke could not access the live Settings window.")
+            return
+        }
+
+        failures.append(contentsOf: SettingsAccessibilitySmokeVerifier.verify(
+            window: window,
+            preferences: preferences
+        ))
     }
 
     private func verifyToolbarLayouts(failures: inout [String]) {

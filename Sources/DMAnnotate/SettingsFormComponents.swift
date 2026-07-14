@@ -14,11 +14,14 @@ struct SettingsGroup<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: 12) {
                 content()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title) settings group")
     }
 }
 
@@ -39,6 +42,8 @@ struct SettingsRow<Content: View>: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
     }
 }
 
@@ -55,6 +60,9 @@ struct SettingsDiagnosticsRow: View {
                 .textSelection(.enabled)
             Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 }
 

@@ -19,12 +19,15 @@ struct SettingsPrivacySectionView: View {
                     Button("Screen Recording") {
                         SystemSettings.open(.screenRecording)
                     }
+                    .accessibilityLabel("Open Screen Recording settings")
                     Button("Accessibility") {
                         SystemSettings.open(.accessibility)
                     }
+                    .accessibilityLabel("Open Accessibility settings")
                     Button("Input Monitoring") {
                         SystemSettings.open(.inputMonitoring)
                     }
+                    .accessibilityLabel("Open Input Monitoring settings")
                 }
             }
         }

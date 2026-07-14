@@ -38,7 +38,7 @@ Public release automation fails closed unless signing, notarization, Gatekeeper 
 - Cyan drawing-mode indicator when screen controls are active
 - Select, pen, highlighter, eraser, line, rectangle, ellipse, arrow, text, laser pointer, whiteboard, and blackboard modes
 - Annotation lock to prevent accidental edits during presentations
-- Tool shortcuts, shortcut tooltips, and click-to-record shortcut customization
+- Tool shortcuts, shortcut tooltips, and keyboard- or click-to-record shortcut customization
 - Command palette for keyboard-first access to tools and actions
 - Undo, redo, clear all, and show/hide annotations
 - Text annotations with movable text, Shift+Enter multiline entry, an auto-expanding editor, and text style controls for size, weight, and color

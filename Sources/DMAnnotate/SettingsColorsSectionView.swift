@@ -10,7 +10,7 @@ struct SettingsColorsSectionView: View {
             SettingsGroup("Default") {
                 SettingsRow("Default color") {
                     ColorPicker(
-                        "",
+                        "Default annotation color",
                         selection: colorBinding(
                             get: { preferences.snapshot.defaultColor },
                             set: { next in
@@ -34,7 +34,7 @@ struct SettingsColorsSectionView: View {
                 ) {
                     ForEach(Array(preferences.snapshot.paletteColors.enumerated()), id: \.offset) { index, _ in
                         ColorPicker(
-                            "Color \(index + 1)",
+                            "Toolbar palette color \(index + 1)",
                             selection: colorBinding(
                                 get: { preferences.snapshot.paletteColors[index] },
                                 set: { next in
@@ -51,6 +51,7 @@ struct SettingsColorsSectionView: View {
                     Button("Save Palette") {
                         preferences.update { $0.saveCurrentPalette() }
                     }
+                    .accessibilityLabel("Save toolbar color palette")
 
                     Menu("Load Palette") {
                         if preferences.snapshot.savedColorPalettes.isEmpty {
@@ -63,6 +64,7 @@ struct SettingsColorsSectionView: View {
                             }
                         }
                     }
+                    .accessibilityLabel("Load toolbar color palette")
                 }
 
                 Text("Command+1 through Command+4 use the first four palette colors.")
