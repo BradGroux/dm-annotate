@@ -133,8 +133,8 @@ struct AppMenuBuilder {
 
     private func editMenu() -> NSMenu {
         let menu = NSMenu(title: "Edit")
-        menu.addItem(menuItem("Undo", action: #selector(AppMenuActionHandling.undo), key: "z"))
-        menu.addItem(menuItem("Redo", action: #selector(AppMenuActionHandling.redo), key: "z", modifiers: [.command, .shift]))
+        menu.addItem(menuItem("Undo", action: #selector(AppMenuActionHandling.undo), shortcut: .undo))
+        menu.addItem(menuItem("Redo", action: #selector(AppMenuActionHandling.redo), shortcut: .redo))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
         menu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
@@ -230,32 +230,17 @@ struct AppMenuBuilder {
 
     private func keyEquivalent(for action: ShortcutAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         guard let normalized = ShortcutResolver.usableShortcut(for: action, in: shortcuts) else { return nil }
-
-        let parts = normalized.split(separator: "+").map(String.init)
-        guard let key = parts.last else { return nil }
+        guard let equivalent = PortableShortcutMenuAdapter.resolve(
+            normalized,
+            characterForKeyCode: { ActiveKeyboardLayout.character(forKeyCode: $0) }
+        ) else { return nil }
 
         var modifiers: NSEvent.ModifierFlags = []
-        for modifier in parts.dropLast() {
-            switch modifier {
-            case "control": modifiers.insert(.control)
-            case "option": modifiers.insert(.option)
-            case "shift": modifiers.insert(.shift)
-            case "command": modifiers.insert(.command)
-            default: break
-            }
-        }
-
-        switch key {
-        case "escape":
-            return ("\u{1b}", [])
-        case "space":
-            return (" ", modifiers)
-        case "enter":
-            return ("\r", modifiers)
-        case "delete":
-            return ("\u{8}", modifiers)
-        default:
-            return (key, modifiers)
-        }
+        if equivalent.modifiers.contains(.control) { modifiers.insert(.control) }
+        if equivalent.modifiers.contains(.option) { modifiers.insert(.option) }
+        if equivalent.modifiers.contains(.shift) { modifiers.insert(.shift) }
+        if equivalent.modifiers.contains(.command) { modifiers.insert(.command) }
+        return (equivalent.key, modifiers)
     }
+
 }

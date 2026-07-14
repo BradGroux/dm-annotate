@@ -17,7 +17,10 @@ final class PreferencesController: ObservableObject {
 
         if let data = defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode(PreferencesSnapshot.self, from: data) {
-            let migrated = Self.migrated(decoded)
+            let migrated = Self.migrated(
+                decoded,
+                keyCodeForLegacyCharacter: ActiveKeyboardLayout.keyCode
+            )
             snapshot = migrated
             if migrated != decoded, let data = try? JSONEncoder().encode(migrated) {
                 defaults.set(data, forKey: key)
@@ -31,7 +34,10 @@ final class PreferencesController: ObservableObject {
         let previous = snapshot
         var next = snapshot
         mutate(&next)
-        next = Self.migrated(next)
+        next = Self.migrated(
+            next,
+            keyCodeForLegacyCharacter: ActiveKeyboardLayout.keyCode
+        )
         snapshot = next
         save()
         applySideEffects(previous: previous, next: next)
@@ -88,9 +94,13 @@ final class PreferencesController: ObservableObject {
         defaults.set(data, forKey: key)
     }
 
-    private static func migrated(_ snapshot: PreferencesSnapshot) -> PreferencesSnapshot {
+    private static func migrated(
+        _ snapshot: PreferencesSnapshot,
+        keyCodeForLegacyCharacter: (String, ShortcutModifiers) -> Int64?
+    ) -> PreferencesSnapshot {
         var migrated = snapshot
 
+        migrated.migrateLegacyShortcuts(keyCodeForCharacter: keyCodeForLegacyCharacter)
         migrated.shortcuts = PreferencesSnapshot.normalizedShortcuts(migrated.shortcuts)
 
         migrated.paletteColors = PreferencesSnapshot.normalizedPaletteColors(migrated.paletteColors)

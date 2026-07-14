@@ -22,6 +22,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
     public var savedColorPalettes: [SavedColorPalette]
     public var visibleTools: Set<AnnotationTool>
     public var shortcuts: [ShortcutAction: String]
+    public var shortcutDescriptorVersion: Int
     public var whiteboardBackground: WhiteboardBackground
 
     private enum CodingKeys: String, CodingKey {
@@ -45,6 +46,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         case savedColorPalettes
         case visibleTools
         case shortcuts
+        case shortcutDescriptorVersion
         case whiteboardBackground
     }
 
@@ -69,6 +71,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         savedColorPalettes: [SavedColorPalette] = [],
         visibleTools: Set<AnnotationTool> = Set(AnnotationTool.allCases),
         shortcuts: [ShortcutAction: String] = ShortcutAction.defaultShortcuts,
+        shortcutDescriptorVersion: Int = ShortcutDescriptorFormat.currentVersion,
         whiteboardBackground: WhiteboardBackground = .white
     ) {
         self.theme = theme
@@ -93,6 +96,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         }
         self.visibleTools = Self.normalizedVisibleTools(visibleTools)
         self.shortcuts = Self.normalizedShortcuts(shortcuts)
+        self.shortcutDescriptorVersion = shortcutDescriptorVersion
         self.whiteboardBackground = whiteboardBackground
     }
 
@@ -123,6 +127,8 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
             savedColorPalettes: try container.decodeIfPresent([SavedColorPalette].self, forKey: .savedColorPalettes) ?? [],
             visibleTools: try container.decodeIfPresent(Set<AnnotationTool>.self, forKey: .visibleTools) ?? Set(AnnotationTool.allCases),
             shortcuts: try container.decodeIfPresent([ShortcutAction: String].self, forKey: .shortcuts) ?? ShortcutAction.defaultShortcuts,
+            shortcutDescriptorVersion: try container.decodeIfPresent(Int.self, forKey: .shortcutDescriptorVersion)
+                ?? ShortcutDescriptorFormat.legacyLayoutDependentVersion,
             whiteboardBackground: try container.decodeIfPresent(WhiteboardBackground.self, forKey: .whiteboardBackground) ?? .white
         )
     }
@@ -171,10 +177,32 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
         var normalized = ShortcutAction.defaultShortcuts
 
         for (action, shortcut) in shortcuts {
-            normalized[action] = shortcut.isEmpty ? "" : ShortcutText.normalize(shortcut)
+            guard !shortcut.isEmpty else {
+                normalized[action] = ""
+                continue
+            }
+
+            let portable = ShortcutText.normalize(shortcut)
+            normalized[action] = portable.isEmpty ? shortcut : portable
         }
 
         return normalized
+    }
+
+    public mutating func migrateLegacyShortcuts(
+        keyCodeForCharacter: (String, ShortcutModifiers) -> Int64?
+    ) {
+        guard shortcutDescriptorVersion < ShortcutDescriptorFormat.currentVersion else { return }
+
+        shortcuts = shortcuts.mapValues { shortcut in
+            guard !shortcut.isEmpty else { return "" }
+            return LegacyShortcutDescriptorMigration.migrate(
+                shortcut,
+                keyCodeForCharacter: keyCodeForCharacter
+            ) ?? LegacyShortcutDescriptorMigration.preserveUnresolved(shortcut)
+        }
+        shortcuts = Self.normalizedShortcuts(shortcuts)
+        shortcutDescriptorVersion = ShortcutDescriptorFormat.currentVersion
     }
 
     public mutating func setPaletteColor(_ color: RGBAColor, at index: Int) {

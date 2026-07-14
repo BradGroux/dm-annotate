@@ -13,14 +13,6 @@ public enum ShortcutText {
         "⌃": "control",
         "⇧": "shift"
     ]
-    private static let specialKeys = [
-        "esc": "escape",
-        "return": "enter",
-        "delete": "delete",
-        "backspace": "delete",
-        "space": "space"
-    ]
-
     public static func normalize(_ raw: String) -> String {
         let tokens = raw
             .lowercased()
@@ -30,11 +22,11 @@ public enum ShortcutText {
 
         guard !tokens.isEmpty, !tokens.contains("") else { return "" }
 
-        let normalizedTokens = tokens.map { token in
-            specialKeys[modifierAliases[token] ?? token] ?? modifierAliases[token] ?? token
-        }
+        let normalizedTokens = tokens.map { modifierAliases[$0] ?? $0 }
 
-        guard let key = normalizedTokens.last, !modifierOrder.contains(key) else { return "" }
+        guard let rawKey = normalizedTokens.last,
+              !modifierOrder.contains(rawKey),
+              let key = ShortcutKeyIdentity.canonicalName(for: rawKey) else { return "" }
 
         if key == "escape" {
             return "escape"
@@ -50,8 +42,14 @@ public enum ShortcutText {
     }
 
     public static func display(_ raw: String) -> String {
+        if let legacy = LegacyShortcutDescriptorMigration.unresolvedOriginal(from: raw) {
+            return "Legacy shortcut: \(legacy) (record again)"
+        }
+
         let normalized = normalize(raw)
-        guard !normalized.isEmpty else { return "None" }
+        guard !normalized.isEmpty else {
+            return raw.isEmpty ? "None" : "Unsupported: \(raw)"
+        }
 
         return normalized
             .split(separator: "+")
@@ -64,7 +62,15 @@ public enum ShortcutText {
                 case "escape": "Esc"
                 case "enter": "Enter"
                 case "delete": "Delete"
+                case "forward-delete": "Forward Delete"
                 case "space": "Space"
+                case "tab": "Tab"
+                case "page-up": "Page Up"
+                case "page-down": "Page Down"
+                case "left": "Left Arrow"
+                case "right": "Right Arrow"
+                case "up": "Up Arrow"
+                case "down": "Down Arrow"
                 case "-": "-"
                 case "=": "="
                 default: token.uppercased()

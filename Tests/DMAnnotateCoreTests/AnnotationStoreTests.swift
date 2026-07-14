@@ -193,6 +193,7 @@ import Testing
     #expect(snapshot.quickColors == Array(RGBAColor.defaultPaletteColors.prefix(4)))
     #expect(!snapshot.revealScreenshotAfterSave)
     #expect(!snapshot.confirmScreenshotFilename)
+    #expect(snapshot.shortcutDescriptorVersion == ShortcutDescriptorFormat.legacyLayoutDependentVersion)
 }
 
 @Test func paletteColorsSeedFromLegacyQuickColorsAndStayCapped() throws {
@@ -1010,6 +1011,110 @@ import Testing
     #expect(ShortcutText.normalize("+command+p").isEmpty)
 }
 
+@Test func shortcutTextAcceptsOnlyPortableKeyIdentities() {
+    #expect(ShortcutText.normalize("control+option+f1") == "control+option+f1")
+    #expect(ShortcutText.normalize("option+command+left") == "option+command+left")
+    #expect(ShortcutText.normalize("option+command+left-arrow") == "option+command+left")
+    #expect(ShortcutText.normalize("control+return") == "control+enter")
+
+    #expect(ShortcutText.normalize("control+option+banana").isEmpty)
+    #expect(!ShortcutText.isValid("control+option+é"))
+}
+
+@Test func shortcutKeyIdentityUsesPhysicalKeyCodesAcrossLayouts() {
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 35) == "p")
+    #expect(ShortcutKeyIdentity.keyCodes(forName: "p") == [35])
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 122) == "f1")
+    #expect(ShortcutKeyIdentity.keyCodes(forName: "f1") == [122])
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 10) == nil)
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 69) == nil)
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 51) == "delete")
+    #expect(ShortcutKeyIdentity.name(forKeyCode: 117) == "forward-delete")
+    #expect(ShortcutKeyIdentity.keyCodes(forName: "delete") == [51])
+    #expect(ShortcutKeyIdentity.keyCodes(forName: "forward-delete") == [117])
+}
+
+@Test func forwardDeleteHasDistinctRecorderAndDispatchIdentity() {
+    let modifiers: ShortcutModifiers = [.control, .option]
+
+    #expect(PortableShortcutDescriptor.resolve(keyCode: 51, modifiers: modifiers) == "control+option+delete")
+    #expect(PortableShortcutDescriptor.resolve(keyCode: 117, modifiers: modifiers) == "control+option+forward-delete")
+    #expect(ShortcutRecordingOutcome.resolve(keyCode: 51, modifiers: []) == .clear)
+    #expect(ShortcutRecordingOutcome.resolve(keyCode: 117, modifiers: []) == .clear)
+    #expect(
+        ShortcutRecordingOutcome.resolve(keyCode: 117, modifiers: modifiers) ==
+            .accepted("control+option+forward-delete")
+    )
+    #expect(ShortcutText.display("control+option+forward-delete") == "Control+Option+Forward Delete")
+}
+
+@Test func portableShortcutDescriptorResolvesModifiersAndPhysicalKeyTogether() {
+    let modifiers: ShortcutModifiers = [.control, .option, .shift]
+
+    #expect(
+        PortableShortcutDescriptor.resolve(keyCode: 35, modifiers: modifiers) ==
+            "control+option+shift+p"
+    )
+    #expect(PortableShortcutDescriptor.resolve(keyCode: 122, modifiers: [.control, .option]) == "control+option+f1")
+    #expect(PortableShortcutDescriptor.resolve(keyCode: 255, modifiers: modifiers) == nil)
+}
+
+@Test func portableShortcutContractHasExhaustiveEventAndMenuParity() throws {
+    let modifiers: ShortcutModifiers = [.control, .option]
+
+    for keyCode in ShortcutKeyIdentity.allKeyCodes {
+        let name = try #require(ShortcutKeyIdentity.name(forKeyCode: keyCode))
+        #expect(ShortcutKeyIdentity.allCanonicalNames.contains(name))
+        #expect(ShortcutKeyIdentity.keyCodes(forName: name).contains(keyCode))
+
+        let descriptor = try #require(
+            PortableShortcutDescriptor.resolve(keyCode: keyCode, modifiers: modifiers)
+        )
+        #expect(ShortcutText.normalize(descriptor) == descriptor)
+        #expect(ShortcutText.canDispatchGlobally(descriptor) == (name != "escape"))
+        #expect(ShortcutResolver.action(for: descriptor, in: [.selectPen: descriptor]) == .selectPen)
+
+        let recording = ShortcutRecordingOutcome.resolve(keyCode: keyCode, modifiers: modifiers)
+        #expect(recording == (name == "escape" ? .cancel : .accepted(descriptor)))
+
+        let menuEquivalent = try #require(
+            PortableShortcutMenuAdapter.resolve(descriptor) { translatedKeyCode in
+                String(UnicodeScalar(0xE000 + Int(translatedKeyCode))!)
+            }
+        )
+        let expectedKeyCode = try #require(ShortcutKeyIdentity.primaryKeyCode(forName: name))
+        #expect(menuEquivalent.key == String(UnicodeScalar(0xE000 + Int(expectedKeyCode))!))
+        #expect(menuEquivalent.modifiers == (name == "escape" ? [] : modifiers))
+    }
+}
+
+@Test func portableShortcutMenuAdapterUsesTheActiveLayoutForTheSamePhysicalKey() throws {
+    let us = try #require(
+        PortableShortcutMenuAdapter.resolve("control+option+p") { keyCode in
+            keyCode == 35 ? "p" : nil
+        }
+    )
+    let alternate = try #require(
+        PortableShortcutMenuAdapter.resolve("control+option+p") { keyCode in
+            keyCode == 35 ? "r" : nil
+        }
+    )
+
+    #expect(us.key == "p")
+    #expect(alternate.key == "r")
+    #expect(us.modifiers == alternate.modifiers)
+}
+
+@Test func shortcutRecorderReportsUnsupportedKeysWithoutChangingTheShortcut() {
+    let unsupported = ShortcutRecordingOutcome.resolve(keyCode: 69, modifiers: [.control, .option])
+    let missingModifier = ShortcutRecordingOutcome.resolve(keyCode: 35, modifiers: [])
+
+    #expect(unsupported == .rejected(.unsupportedKey))
+    #expect(unsupported.feedback == "Unsupported key")
+    #expect(missingModifier == .rejected(.missingModifier))
+    #expect(missingModifier.feedback == "Use modifier...")
+}
+
 @Test func preferencesSnapshotNormalizesShortcutInput() {
     let snapshot = PreferencesSnapshot(shortcuts: [
         .selectPen: "Control + Option + P",
@@ -1017,9 +1122,68 @@ import Testing
     ])
 
     #expect(snapshot.shortcuts[.selectPen] == "control+option+p")
-    #expect(snapshot.shortcuts[.selectEraser] == "")
+    #expect(snapshot.shortcuts[.selectEraser] == "p")
+    #expect(ShortcutResolver.usableShortcut(for: .selectEraser, in: snapshot.shortcuts) == nil)
     #expect(snapshot.shortcuts[.showSettings] == ShortcutAction.defaultShortcuts[.showSettings])
     #expect(Set(snapshot.shortcuts.keys) == Set(ShortcutAction.allCases))
+}
+
+@Test func preferencesSnapshotPreservesUnsupportedLegacyShortcutForRecovery() {
+    let snapshot = PreferencesSnapshot(shortcuts: [
+        .selectPen: "control+option+banana"
+    ])
+
+    #expect(snapshot.shortcuts[.selectPen] == "control+option+banana")
+    #expect(ShortcutText.display(snapshot.shortcuts[.selectPen] ?? "") == "Unsupported: control+option+banana")
+    #expect(ShortcutResolver.usableShortcut(for: .selectPen, in: snapshot.shortcuts) == nil)
+}
+
+@Test func legacyShortcutMigrationUsesActiveLayoutWithoutReinterpretingPhysicalKeys() {
+    var snapshot = PreferencesSnapshot(
+        shortcuts: [
+            .selectPen: "control+option+p",
+            .selectEraser: "control+option+r",
+            .selectLine: "control+option+f1",
+            .selectEllipse: "control+option+shift+!",
+            .selectHighlighter: "control+option+q",
+            .selectRectangle: "control+option+not-on-this-layout"
+        ],
+        shortcutDescriptorVersion: ShortcutDescriptorFormat.legacyLayoutDependentVersion
+    )
+
+    snapshot.migrateLegacyShortcuts { character, modifiers in
+        switch character {
+        case "p": 15 // The active layout produces P from the ANSI R position.
+        case "r": 35 // The active layout produces R from the ANSI P position.
+        case "!" where modifiers.contains(.shift): 18
+        default: nil
+        }
+    }
+
+    #expect(snapshot.shortcutDescriptorVersion == ShortcutDescriptorFormat.currentVersion)
+    #expect(snapshot.shortcuts[.selectPen] == "control+option+r")
+    #expect(snapshot.shortcuts[.selectEraser] == "control+option+p")
+    #expect(snapshot.shortcuts[.selectLine] == "control+option+f1")
+    #expect(snapshot.shortcuts[.selectEllipse] == "control+option+shift+1")
+    #expect(snapshot.shortcuts[.selectHighlighter] == "legacy-layout:control+option+q")
+    #expect(snapshot.shortcuts[.selectRectangle] == "legacy-layout:control+option+not-on-this-layout")
+    #expect(
+        ShortcutText.display(snapshot.shortcuts[.selectHighlighter] ?? "") ==
+            "Legacy shortcut: control+option+q (record again)"
+    )
+    #expect(ShortcutResolver.usableShortcut(for: .selectHighlighter, in: snapshot.shortcuts) == nil)
+    #expect(ShortcutResolver.usableShortcut(for: .selectRectangle, in: snapshot.shortcuts) == nil)
+}
+
+@Test func currentShortcutPreferencesPersistTheirVersionAndNeverMigrateAgain() throws {
+    let snapshot = PreferencesSnapshot(shortcuts: [.selectPen: "control+option+p"])
+    let encoded = try JSONEncoder().encode(snapshot)
+    var decoded = try JSONDecoder().decode(PreferencesSnapshot.self, from: encoded)
+
+    decoded.migrateLegacyShortcuts { _, _ in 15 }
+
+    #expect(decoded.shortcutDescriptorVersion == ShortcutDescriptorFormat.currentVersion)
+    #expect(decoded.shortcuts[.selectPen] == "control+option+p")
 }
 
 @Test func shortcutTextSeparatesGlobalSafeShortcutsFromLocalMenuShortcuts() {
@@ -1059,6 +1223,15 @@ import Testing
     #expect(actionsByDescriptor["command+,"] == nil)
     #expect(actionsByDescriptor["command+z"] == nil)
     #expect(actionsByDescriptor["control+option+p"] == nil)
+}
+
+@Test func shortcutResolverOnlyPublishesDescriptorsTheEventTapCanProduce() {
+    let actionsByDescriptor = ShortcutResolver.globallyDispatchableActions(in: [
+        .selectPen: "control+option+f1",
+        .selectEraser: "control+option+banana"
+    ])
+
+    #expect(actionsByDescriptor == ["control+option+f1": .selectPen])
 }
 
 @Test func globalShortcutMonitorStateDisablesDispatchWhenTapUnavailable() {

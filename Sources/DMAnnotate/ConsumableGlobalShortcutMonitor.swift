@@ -108,81 +108,15 @@ final class ConsumableGlobalShortcutMonitor: @unchecked Sendable {
 
     private static func descriptor(for event: CGEvent) -> String {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        guard let key = keyName(for: keyCode) else { return "" }
-        if key == "escape" {
-            return "escape"
-        }
-
         let flags = event.flags
-        var parts: [String] = []
-        if flags.contains(.maskControl) { parts.append("control") }
-        if flags.contains(.maskAlternate) { parts.append("option") }
-        if flags.contains(.maskShift) { parts.append("shift") }
-        if flags.contains(.maskCommand) { parts.append("command") }
-        parts.append(key)
-
-        return ShortcutText.normalize(parts.joined(separator: "+"))
+        var modifiers: ShortcutModifiers = []
+        if flags.contains(.maskControl) { modifiers.insert(.control) }
+        if flags.contains(.maskAlternate) { modifiers.insert(.option) }
+        if flags.contains(.maskShift) { modifiers.insert(.shift) }
+        if flags.contains(.maskCommand) { modifiers.insert(.command) }
+        return PortableShortcutDescriptor.resolve(keyCode: keyCode, modifiers: modifiers) ?? ""
     }
 
-    private static func keyName(for keyCode: Int64) -> String? {
-        keyNamesByCode[keyCode]
-    }
-
-    private static let keyNamesByCode: [Int64: String] = [
-        0: "a",
-        1: "s",
-        2: "d",
-        3: "f",
-        4: "h",
-        5: "g",
-        6: "z",
-        7: "x",
-        8: "c",
-        9: "v",
-        11: "b",
-        12: "q",
-        13: "w",
-        14: "e",
-        15: "r",
-        16: "y",
-        17: "t",
-        18: "1",
-        19: "2",
-        20: "3",
-        21: "4",
-        22: "6",
-        23: "5",
-        24: "=",
-        25: "9",
-        26: "7",
-        27: "-",
-        28: "8",
-        29: "0",
-        30: "]",
-        31: "o",
-        32: "u",
-        33: "[",
-        34: "i",
-        35: "p",
-        36: "enter",
-        37: "l",
-        38: "j",
-        39: "'",
-        40: "k",
-        41: ";",
-        42: "\\",
-        43: ",",
-        44: "/",
-        45: "n",
-        46: "m",
-        47: ".",
-        49: "space",
-        50: "`",
-        51: "delete",
-        53: "escape",
-        76: "enter",
-        117: "delete"
-    ]
 }
 
 private let consumableGlobalShortcutCallback: CGEventTapCallBack = { _, type, event, userInfo in

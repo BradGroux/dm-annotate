@@ -1,4 +1,5 @@
 import AppKit
+import DMAnnotateCore
 import SwiftUI
 
 struct ShortcutRecorderField: NSViewRepresentable {
@@ -75,27 +76,27 @@ final class RecordingShortcutField: NSTextField {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 51 || event.keyCode == 117 {
+        let eventModifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        var modifiers: ShortcutModifiers = []
+        if eventModifiers.contains(.control) { modifiers.insert(.control) }
+        if eventModifiers.contains(.option) { modifiers.insert(.option) }
+        if eventModifiers.contains(.shift) { modifiers.insert(.shift) }
+        if eventModifiers.contains(.command) { modifiers.insert(.command) }
+
+        switch ShortcutRecordingOutcome.resolve(keyCode: Int64(event.keyCode), modifiers: modifiers) {
+        case .clear:
             onChange?("")
             shortcut = ""
             window?.makeFirstResponder(nil)
-            return
-        }
-
-        if event.keyCode == 53 {
+        case .cancel:
             window?.makeFirstResponder(nil)
-            return
-        }
-
-        let descriptor = ShortcutDescriptor(event: event).normalized
-        guard ShortcutDescriptor.isValid(descriptor) else {
-            stringValue = "Use modifier..."
+        case let .accepted(descriptor):
+            onChange?(descriptor)
+            shortcut = descriptor
+            window?.makeFirstResponder(nil)
+        case let .rejected(rejection):
+            stringValue = ShortcutRecordingOutcome.rejected(rejection).feedback ?? "Unsupported shortcut"
             NSSound.beep()
-            return
         }
-
-        onChange?(descriptor)
-        shortcut = descriptor
-        window?.makeFirstResponder(nil)
     }
 }
