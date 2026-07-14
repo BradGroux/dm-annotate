@@ -45,7 +45,7 @@ Public release automation fails closed unless signing, notarization, Gatekeeper 
 - Placed annotation selection for move, delete, recolor, and stroke/text size edits with undo/redo
 - Local annotation session save/load using `.dmannotate-session` files
 - 10-color editable palette, saved/reloadable palettes, custom color picker, default color, and stroke widths from `1` through `64` px with custom entry
-- Full-display and crosshair-guided region screenshots to clipboard or timestamped PNG files, with copy/save/reveal options and transparent annotation-only PNG export
+- Full-display and crosshair-guided region screenshots to clipboard or timestamped PNG files, with compact copy/save confirmation, copy/save/reveal options, and transparent annotation-only PNG export
 - Local settings for theme, toolbar, tooltips, visible tools, screenshot destination, colors, and shortcuts
 - Permission warning in the toolbar when Screen Recording or Accessibility is missing
 - Diagnostics view for local issue triage

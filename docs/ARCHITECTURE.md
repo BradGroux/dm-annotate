@@ -26,6 +26,7 @@ Tests/
 | `ToolbarLayoutMetrics` | Shared toolbar sizing constants and panel size estimates |
 | `ShortcutController` | Local/global shortcut monitors and emergency escape handling |
 | `ScreenshotController` | Full-display and region screenshot capture with region-first rendering |
+| `ScreenshotFeedbackPresenter` | Compact, non-animated copy/save outcome feedback and VoiceOver announcements |
 | `ScreenshotGeometry` | Testable screenshot region-to-pixel geometry |
 | `PreferencesController` | `UserDefaults` persistence and preference side effects |
 | `PermissionOnboardingController` | First-run and manual permission guidance |
@@ -56,6 +57,7 @@ The app uses:
 - Transparent always-on-top overlay windows for drawing.
 - A floating toolbar panel above normal app content.
 - Region selection windows for screenshot capture.
+- A nonactivating screenshot feedback panel excluded from capture and screen sharing.
 
 Cursor mode is click-through. Select and drawing tools capture pointer input on the overlay.
 
@@ -71,6 +73,8 @@ Normal operation is local-only:
 - No network calls.
 
 Screenshots are only copied to the local clipboard or saved to the configured local folder.
+
+Successful and failed screenshot outputs produce compact native feedback. Each capture owns a sequenced feedback session and its capture display's visible frame, so stale asynchronous outcomes are suppressed and feedback stays on the originating display. The presenter uses no window animation, posts a VoiceOver announcement, opts the panel out of window sharing, and is synchronously hidden before each capture so feedback cannot leak into a subsequent screenshot.
 
 Region capture crops the screen image before allocating its annotated render target. PNG encoding uses the existing `CGImage` directly through Image I/O, and encoding plus file writes run off the main actor after hidden capture chrome has been restored. Clipboard publication returns to the main actor because `NSPasteboard` is an AppKit boundary.
 
@@ -99,3 +103,4 @@ Manual checks are still required for:
 - Toolbar drag behavior.
 - Screen recording and screen share visibility.
 - Region screenshot interaction.
+- Screenshot feedback placement, VoiceOver announcements, and capture exclusion on supported macOS versions.

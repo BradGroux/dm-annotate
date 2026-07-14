@@ -46,6 +46,7 @@ Strengths:
 - Settings sections now live in focused SwiftUI views with shared form components, leaving `SettingsView` responsible for navigation and layout shell only.
 - Toolbar tool selection, stroke/text controls, screenshot actions, and shared button/tooltip styles now live in focused SwiftUI views.
 - Screenshot export now supports transparent annotation-only PNGs alongside the default flattened annotated screenshots.
+- Screenshot copy and save outcomes now use compact non-animated feedback with concise destinations, VoiceOver announcements, and capture exclusion.
 - Annotation sessions now save and load local `.dmannotate-session` files with safe display retargeting.
 - Select mode now supports placed annotation move, delete, recolor, stroke sizing, and text style edits with undo/redo.
 - Toolbar layout presets now save and apply local display-aware toolbar layouts.

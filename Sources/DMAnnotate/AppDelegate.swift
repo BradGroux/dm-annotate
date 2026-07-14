@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
     private let launchRecovery = LaunchRecoveryController()
     private var preferences: PreferencesController!
     private var overlayController: OverlayController!
+    private var screenshotFeedbackPresenter: ScreenshotFeedbackPresenter!
     private var screenshotController: ScreenshotController!
     private var shortcutController: ShortcutController!
     private var toolbarWindowController: ToolbarWindowController!
@@ -73,10 +74,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
 
         preferences = PreferencesController(store: store, defaults: defaults)
         overlayController = OverlayController(store: store)
+        screenshotFeedbackPresenter = ScreenshotFeedbackPresenter()
         screenshotController = ScreenshotController(
             store: store,
             preferences: preferences,
-            overlayController: overlayController
+            overlayController: overlayController,
+            feedbackPresenter: screenshotFeedbackPresenter
         )
         shortcutController = ShortcutController(
             preferences: preferences,
@@ -373,6 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         verifyToolbarLayouts(failures: &failures)
         verifyCommandPaletteCommands(commands, failures: &failures)
         verifyToolbarPresetPreferences(failures: &failures)
+        verifyScreenshotFeedback(failures: &failures)
 
         if failures.isEmpty {
             print("dm-annotate UI smoke OK")
@@ -380,6 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
             print("- toolbar layout states rendered")
             print("- command palette actions generated")
             print("- toolbar preset preferences round-tripped")
+            print("- screenshot feedback rendered without animation")
             NSApp.terminate(nil)
             return
         }
@@ -529,6 +534,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppMenuActionHandling 
         if !displays.isEmpty, snapshot.toolbarOriginsByDisplayID.isEmpty {
             failures.append("Toolbar preset smoke did not restore display-specific origins.")
         }
+    }
+
+    private func verifyScreenshotFeedback(failures: inout [String]) {
+        let placement = (NSScreen.main ?? NSScreen.screens.first).map {
+            ScreenshotFeedbackPlacement(visibleFrame: $0.visibleFrame)
+        }
+        screenshotFeedbackPresenter.present(.clipboardSuccess, placement: placement)
+        settleWindows()
+
+        if !screenshotFeedbackPresenter.isVisible {
+            failures.append("Screenshot feedback panel is not visible.")
+        }
+        if !screenshotFeedbackPresenter.isCaptureExcluded {
+            failures.append("Screenshot feedback panel is not excluded from capture.")
+        }
+        if !screenshotFeedbackPresenter.isNonAnimated {
+            failures.append("Screenshot feedback panel allows animation.")
+        }
+
+        screenshotFeedbackPresenter.prepareForCapture()
     }
 
     private func commandPaletteCommands() -> [CommandPaletteCommand] {
