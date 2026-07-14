@@ -81,7 +81,7 @@ import Testing
 }
 
 @MainActor
-@Test func enabledToolbarButtonVisualStatesRemainUnchanged() {
+@Test func enabledToolbarButtonVisualStatesRetainUnselectedAndPressedTreatments() {
     let active = ToolbarIconButtonStyle.visualState(
         active: true,
         highContrast: false,
@@ -94,13 +94,19 @@ import Testing
         isEnabled: true,
         isPressed: true
     )
+    let selectedPressedScale = AdaptiveSelectedControlStyle.selectedScale(
+        selectedIsVisible: true,
+        isEnabled: true,
+        isPressed: true
+    )
 
-    #expect(active.foregroundToken == .white)
-    #expect(active.fillToken == .accent)
-    #expect(active.fillOpacity == 1)
+    #expect(active.foregroundToken == .primary)
+    #expect(active.fillToken == .white)
+    #expect(active.fillOpacity == 0.07)
     #expect(active.contentOpacity == 1)
     #expect(pressed.foregroundToken == .primary)
     #expect(pressed.fillToken == .white)
     #expect(pressed.fillOpacity == 0.14)
     #expect(pressed.contentOpacity == 1)
+    #expect(selectedPressedScale == 0.94)
 }

@@ -51,10 +51,9 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .foregroundStyle(selectedSection == section ? Color.white : Color.primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(selectedSection == section ? Color.accentColor : Color.clear)
+                        .adaptiveSelectedControl(
+                            selected: selectedSection == section,
+                            cornerRadius: 7
                         )
                 }
                 .buttonStyle(.plain)
