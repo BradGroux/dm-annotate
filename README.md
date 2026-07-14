@@ -66,6 +66,7 @@ Public release automation fails closed unless signing, notarization, Gatekeeper 
 ## Mac Requirements
 
 - macOS 13 Ventura or later.
+- Apple silicon and Intel Macs. Release builds from the current source require both `arm64` and `x86_64` executable slices.
 - Screen Recording permission for full-screen and region screenshots that include other apps behind annotations.
 - Accessibility permission for reliable global shortcuts while another app is active.
 - Input Monitoring may be required by macOS for global keyboard shortcuts, depending on OS version and security settings.
@@ -96,7 +97,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled.
+Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled. The existing v0.1.12 artifact is Apple silicon only; universal Apple silicon and Intel packaging takes effect with the next release.
 
 `BradGroux/tap` is the only supported Homebrew tap for `dm-annotate`. If Homebrew reports that `dm-annotate` exists in multiple taps, remove the retired app-repo tap:
 

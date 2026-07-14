@@ -10,6 +10,11 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 - Fail closed for public release tags unless signing, notarization, Gatekeeper validation, and default-branch provenance checks pass; keep ad-hoc previews behind an explicit draft-prerelease workflow.
 
+### Changed
+
+- Build universal macOS release artifacts for Apple silicon and Intel, and reject archives with missing or unexpected executable slices.
+- Move release artifact upload and download actions to pinned Node.js 24-compatible versions.
+
 ### Fixed
 
 - Validate annotation sessions before atomic export, preserve existing files on failed saves, and bound live stroke points so saved sessions always remain reloadable.

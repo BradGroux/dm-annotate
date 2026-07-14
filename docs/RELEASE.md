@@ -34,9 +34,12 @@ swift test
 plutil -lint Packaging/Info.plist
 bash -n scripts/build-app.sh
 bash -n scripts/package-release.sh
+bash -n scripts/test-release-architectures.sh
 bash -n scripts/verify-release-zip.sh
+bash -n scripts/verify-executable-architectures.sh
 bash -n scripts/smoke-ui.sh
 scripts/test-release-config.sh
+scripts/test-release-architectures.sh
 zip_path="$(scripts/verify-release-zip.sh)"
 shasum -a 256 "${zip_path}" > "${zip_path}.sha256"
 test -s "${zip_path}.sha256"
@@ -53,6 +56,8 @@ Output:
 ```text
 .build/Digital Meld Annotate.app
 ```
+
+Release bundles are universal: `scripts/build-app.sh release` builds and merges `arm64` and `x86_64` slices before signing. Debug bundles remain native to keep local iteration fast.
 
 ## Package an ad-hoc signed zip
 
@@ -80,7 +85,7 @@ Output:
 .build/dist/dm-annotate-VERSION-macos.zip
 ```
 
-The verifier packages the app when no zip path is provided, unpacks the archive into a temporary directory, checks bundle metadata against `Packaging/Info.plist`, verifies the code signature, and runs the app executable in launch-verification mode without starting the overlay UI or requesting macOS permissions.
+The verifier packages the app when no zip path is provided, unpacks the archive into a temporary directory, checks bundle metadata against `Packaging/Info.plist`, requires exactly the `arm64` and `x86_64` executable slices, verifies the code signature, and runs the app executable in launch-verification mode without starting the overlay UI or requesting macOS permissions. On Apple silicon it launches both slices, using Rosetta for the Intel check; on Intel it launches the native `x86_64` slice.
 
 Require notarization checks when validating a signed release artifact:
 
@@ -226,6 +231,7 @@ The workflow runs:
 - `swift test`
 - `plutil -lint Packaging/Info.plist`
 - packaging script syntax checks
+- universal executable verification (`arm64` and `x86_64`)
 - `scripts/package-release.sh`
 - `scripts/verify-release-zip.sh`
 - `bash -n scripts/smoke-ui.sh`

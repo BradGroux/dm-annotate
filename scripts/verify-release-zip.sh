@@ -61,6 +61,8 @@ ICON_PATH="${APP_PATH}/Contents/Resources/AppIcon.icns"
 [[ -x "${EXECUTABLE_PATH}" ]] || fail "bundle executable is missing or not executable"
 [[ -s "${ICON_PATH}" ]] || fail "bundle icon is missing or empty"
 
+scripts/verify-executable-architectures.sh "${EXECUTABLE_PATH}" >/dev/null
+
 plutil -lint "${INFO_PLIST}" >/dev/null
 
 for key in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion CFBundleExecutable CFBundleName CFBundleDisplayName LSMinimumSystemVersion; do
@@ -76,8 +78,19 @@ if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
   spctl -a -vvv -t exec "${APP_PATH}" >&2
 fi
 
-smoke_output="$("${EXECUTABLE_PATH}" --verify-launch)"
-assert_equal "launch verification output" "dm-annotate launch verification OK" "${smoke_output}"
+LAUNCH_ARCHITECTURES=("$(/usr/bin/uname -m)")
+if [[ "${LAUNCH_ARCHITECTURES[0]}" == "arm64" ]]; then
+  # GitHub's Apple silicon release runner includes Rosetta. Exercising the Intel
+  # slice catches load-time failures that a lipo inventory alone cannot detect.
+  LAUNCH_ARCHITECTURES+=(x86_64)
+fi
+
+for architecture in "${LAUNCH_ARCHITECTURES[@]}"; do
+  if ! smoke_output="$(/usr/bin/arch "-${architecture}" "${EXECUTABLE_PATH}" --verify-launch)"; then
+    fail "${architecture} launch verification failed"
+  fi
+  assert_equal "${architecture} launch verification output" "dm-annotate launch verification OK" "${smoke_output}"
+done
 
 log "Verified release zip: ${ZIP_PATH}"
 printf '%s\n' "${ZIP_PATH}"
