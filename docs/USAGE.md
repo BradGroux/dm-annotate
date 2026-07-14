@@ -131,6 +131,7 @@ Text annotations support:
 - Plain `Enter` to commit the text annotation.
 - `Shift+Enter` to insert a newline.
 - Auto-expanding text entry as the sentence grows.
+- Adaptive solid editor chrome that keeps text, the insertion point, and selection readable over light, dark, grid, and live content. The editor snapshots the selected RGBA when entry begins, shows an opaque preview of that RGB for legibility, responds immediately to Increase Contrast changes, and commits the snapshotted alpha unchanged.
 - Dragging existing text with the Text tool.
 - Text style controls for font size, custom size, weight, and color.
 
