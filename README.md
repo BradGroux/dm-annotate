@@ -98,7 +98,7 @@ brew tap BradGroux/tap
 brew install --cask dm-annotate
 ```
 
-Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled. The existing v0.1.12 artifact is Apple silicon only; universal Apple silicon and Intel packaging takes effect with the next release.
+Homebrew installs use the current GitHub release artifact. Published Homebrew artifacts are Developer ID signed, notarized, and stapled. Release v0.1.13 and later include a universal executable for Apple silicon and Intel Macs.
 
 `BradGroux/tap` is the only supported Homebrew tap for `dm-annotate`. If Homebrew reports that `dm-annotate` exists in multiple taps, remove the retired app-repo tap:
 
