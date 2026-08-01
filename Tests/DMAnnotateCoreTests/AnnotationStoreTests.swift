@@ -722,7 +722,7 @@ private func heavyPerimeterPoints() -> [CGPoint] {
 
 @MainActor
 @Test func exitScreenControlsRestoresSafeClickThroughState() {
-    let store = AnnotationStore(activeTool: .pen, whiteboardModeEnabled: true)
+    let store = AnnotationStore(activeTool: .pen, whiteboardModeEnabled: true, boardDisplayID: 2)
 
     #expect(store.isControllingScreen)
 
@@ -730,7 +730,53 @@ private func heavyPerimeterPoints() -> [CGPoint] {
 
     #expect(store.activeTool == .cursor)
     #expect(!store.whiteboardModeEnabled)
+    #expect(store.boardDisplayID == nil)
     #expect(!store.isControllingScreen)
+}
+
+@MainActor
+@Test func boardModeOnlyRendersOnItsTargetDisplay() {
+    let store = AnnotationStore()
+
+    store.setActiveTool(.whiteboard, boardDisplayID: 2)
+
+    #expect(store.whiteboardModeEnabled)
+    #expect(store.boardDisplayID == 2)
+    #expect(!store.shouldRenderBoard(on: 1))
+    #expect(store.shouldRenderBoard(on: 2))
+    #expect(!store.shouldRenderBoard(on: 3))
+}
+
+@MainActor
+@Test func boardFamilySwitchPreservesTargetAndToggleOffClearsIt() {
+    let store = AnnotationStore(whiteboardBackground: .white)
+
+    store.setActiveTool(.whiteboard, boardDisplayID: 2)
+    store.setActiveTool(.blackboard, boardDisplayID: 3)
+
+    #expect(store.whiteboardModeEnabled)
+    #expect(store.whiteboardBackground == .black)
+    #expect(store.boardDisplayID == 2)
+
+    store.setActiveTool(.blackboard, boardDisplayID: 3)
+
+    #expect(!store.whiteboardModeEnabled)
+    #expect(store.boardDisplayID == nil)
+}
+
+@MainActor
+@Test func boardTargetRetainsConnectedDisplayAndFallsBackAfterDisconnect() {
+    let store = AnnotationStore()
+    store.setActiveTool(.whiteboard, boardDisplayID: 2)
+
+    store.retargetBoardDisplay(availableDisplayIDs: [1, 2], fallbackDisplayID: 1)
+    #expect(store.boardDisplayID == 2)
+
+    store.retargetBoardDisplay(availableDisplayIDs: [1, 3], fallbackDisplayID: 3)
+    #expect(store.boardDisplayID == 3)
+
+    store.retargetBoardDisplay(availableDisplayIDs: [1], fallbackDisplayID: 99)
+    #expect(store.boardDisplayID == 1)
 }
 
 @MainActor
@@ -906,6 +952,10 @@ private func heavyPerimeterPoints() -> [CGPoint] {
     #expect(restored.annotationsLocked)
     #expect(restored.whiteboardModeEnabled)
     #expect(restored.whiteboardBackground == .darkGrid)
+    #expect(restored.boardDisplayID == nil)
+    restored.retargetBoardDisplay(availableDisplayIDs: [7, 8], fallbackDisplayID: 7)
+    #expect(restored.shouldRenderBoard(on: 7))
+    #expect(!restored.shouldRenderBoard(on: 8))
     #expect(!restored.canUndo)
 }
 

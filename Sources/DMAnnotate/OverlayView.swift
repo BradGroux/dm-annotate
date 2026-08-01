@@ -81,7 +81,7 @@ final class OverlayView: NSView, NSTextViewDelegate {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if store.whiteboardModeEnabled {
+        if store.shouldRenderBoard(on: displayID) {
             AnnotationRenderer.drawWhiteboard(in: bounds, background: store.whiteboardBackground)
         }
 

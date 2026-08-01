@@ -6,8 +6,11 @@ This project uses `MAJOR.MINOR.PATCH` versioning while the app is pre-1.0.
 
 ## Unreleased
 
+## 0.1.14 - 2026-08-01
+
 ### Fixed
 
+- Scope whiteboard and blackboard backgrounds to the active display in multi-monitor setups, including flattened screenshots and display-disconnect fallback.
 - Generate release notes from the matching versioned changelog section and fail before publication when that section is missing, empty, or duplicated.
 
 ## 0.1.13 - 2026-07-14
