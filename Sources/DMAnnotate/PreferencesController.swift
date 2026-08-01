@@ -50,7 +50,13 @@ final class PreferencesController: ObservableObject {
     }
 
     func setActiveTool(_ tool: AnnotationTool) {
-        store.setActiveTool(tool)
+        let boardDisplayID: UInt32? = switch tool {
+        case .whiteboard, .blackboard:
+            NSScreen.annotationFocusDisplayID
+        default:
+            nil
+        }
+        store.setActiveTool(tool, boardDisplayID: boardDisplayID)
 
         guard tool == .whiteboard || tool == .blackboard,
               snapshot.whiteboardBackground != store.whiteboardBackground else {

@@ -23,6 +23,7 @@ public final class AnnotationStore: ObservableObject {
     @Published public var annotationsLocked: Bool
     @Published public var whiteboardModeEnabled: Bool
     @Published public var whiteboardBackground: WhiteboardBackground
+    @Published public private(set) var boardDisplayID: UInt32?
     @Published public private(set) var selectedAnnotationID: AnnotationItem.ID?
     @Published public private(set) var canUndo: Bool
     @Published public private(set) var canRedo: Bool
@@ -46,7 +47,8 @@ public final class AnnotationStore: ObservableObject {
         isVisible: Bool = true,
         annotationsLocked: Bool = false,
         whiteboardModeEnabled: Bool = false,
-        whiteboardBackground: WhiteboardBackground = .white
+        whiteboardBackground: WhiteboardBackground = .white,
+        boardDisplayID: UInt32? = nil
     ) {
         self.annotations = annotations
         self.activeTool = activeTool
@@ -58,6 +60,7 @@ public final class AnnotationStore: ObservableObject {
         self.annotationsLocked = annotationsLocked
         self.whiteboardModeEnabled = whiteboardModeEnabled
         self.whiteboardBackground = whiteboardBackground
+        self.boardDisplayID = whiteboardModeEnabled ? boardDisplayID : nil
         selectedAnnotationID = nil
         undoStack = []
         redoStack = []
@@ -66,17 +69,17 @@ public final class AnnotationStore: ObservableObject {
         canRedo = false
     }
 
-    public func setActiveTool(_ tool: AnnotationTool) {
+    public func setActiveTool(_ tool: AnnotationTool, boardDisplayID: UInt32? = nil) {
         switch tool {
         case .cursor:
             activeTool = tool
             clearSelection()
             return
         case .whiteboard:
-            toggleBoard(tool: tool)
+            toggleBoard(tool: tool, displayID: boardDisplayID)
             return
         case .blackboard:
-            toggleBoard(tool: tool)
+            toggleBoard(tool: tool, displayID: boardDisplayID)
             return
         default:
             activeTool = tool
@@ -315,7 +318,35 @@ public final class AnnotationStore: ObservableObject {
     public func exitScreenControls() {
         activeTool = .cursor
         whiteboardModeEnabled = false
+        boardDisplayID = nil
         clearSelection()
+    }
+
+    public func shouldRenderBoard(on displayID: UInt32) -> Bool {
+        whiteboardModeEnabled && boardDisplayID == displayID
+    }
+
+    public func retargetBoardDisplay(availableDisplayIDs: [UInt32], fallbackDisplayID: UInt32?) {
+        guard whiteboardModeEnabled else {
+            if boardDisplayID != nil {
+                boardDisplayID = nil
+            }
+            return
+        }
+
+        if let boardDisplayID, availableDisplayIDs.contains(boardDisplayID) {
+            return
+        }
+
+        let nextDisplayID: UInt32?
+        if let fallbackDisplayID, availableDisplayIDs.contains(fallbackDisplayID) {
+            nextDisplayID = fallbackDisplayID
+        } else {
+            nextDisplayID = availableDisplayIDs.first
+        }
+        if boardDisplayID != nextDisplayID {
+            boardDisplayID = nextDisplayID
+        }
     }
 
     public func setQuickColor(_ color: RGBAColor) {
@@ -424,6 +455,7 @@ public final class AnnotationStore: ObservableObject {
         textFontWeight = session.textFontWeight
         isVisible = session.isVisible
         annotationsLocked = session.annotationsLocked
+        boardDisplayID = nil
         whiteboardModeEnabled = session.whiteboardModeEnabled
         whiteboardBackground = session.whiteboardBackground
         selectedAnnotationID = nil
@@ -472,14 +504,18 @@ public final class AnnotationStore: ObservableObject {
         }?.offset ?? 1
     }
 
-    private func toggleBoard(tool: AnnotationTool) {
+    private func toggleBoard(tool: AnnotationTool, displayID: UInt32?) {
         let targetsDarkBoard = tool == .blackboard
         if whiteboardModeEnabled, whiteboardBackground.isDarkBoard == targetsDarkBoard {
             whiteboardModeEnabled = false
+            boardDisplayID = nil
             return
         }
 
         whiteboardBackground = whiteboardBackground.adapted(for: tool)
+        if !whiteboardModeEnabled {
+            boardDisplayID = displayID
+        }
         whiteboardModeEnabled = true
         if activeTool == .cursor {
             activeTool = .pen

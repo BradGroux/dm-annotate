@@ -41,10 +41,20 @@ final class OverlayController {
             }
             .store(in: &cancellables)
 
+        Publishers.CombineLatest(store.$whiteboardModeEnabled, store.$boardDisplayID)
+            .dropFirst()
+            .sink { [weak self] _, _ in
+                Task { @MainActor in
+                    self?.reconcileBoardDisplayTarget(for: NSScreen.screens)
+                }
+            }
+            .store(in: &cancellables)
+
         let fullRedrawSignals: [AnyPublisher<Void, Never>] = [
             store.$isVisible.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             store.$whiteboardModeEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            store.$whiteboardBackground.dropFirst().map { _ in () }.eraseToAnyPublisher()
+            store.$whiteboardBackground.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            store.$boardDisplayID.dropFirst().map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(fullRedrawSignals)
             .sink { [weak self] _ in
@@ -71,6 +81,7 @@ final class OverlayController {
     private func rebuildWindows(for screens: [NSScreen]) {
         windows.forEach { $0.close() }
         displayGeometry = screens.map(\.annotationDisplayGeometry)
+        reconcileBoardDisplayTarget(for: screens)
         windows = screens.map { screen in
             let displayID = screen.displayID
             let window = OverlayWindow(frame: screen.frame)
@@ -91,6 +102,17 @@ final class OverlayController {
 
     private var overlayViews: [OverlayView] {
         windows.compactMap { $0.contentView as? OverlayView }
+    }
+
+    private func reconcileBoardDisplayTarget(for screens: [NSScreen]) {
+        let availableDisplayIDs = screens.map(\.displayID)
+        let fallbackDisplayID = screens.first { $0.frame.contains(NSEvent.mouseLocation) }?.displayID
+            ?? NSScreen.main?.displayID
+            ?? availableDisplayIDs.first
+        store.retargetBoardDisplay(
+            availableDisplayIDs: availableDisplayIDs,
+            fallbackDisplayID: fallbackDisplayID
+        )
     }
 
     private func apply(_ invalidation: AnnotationInvalidation) {
@@ -132,6 +154,14 @@ final class OverlayWindow: NSPanel {
 }
 
 extension NSScreen {
+    @MainActor
+    static var annotationFocusDisplayID: UInt32? {
+        NSApp.keyWindow?.screen?.displayID
+            ?? screens.first { $0.frame.contains(NSEvent.mouseLocation) }?.displayID
+            ?? main?.displayID
+            ?? screens.first?.displayID
+    }
+
     var displayID: UInt32 {
         deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 ?? 0
     }

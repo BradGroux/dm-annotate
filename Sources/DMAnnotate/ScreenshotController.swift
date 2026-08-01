@@ -302,7 +302,7 @@ final class ScreenshotController {
     }
 
     private func drawAnnotations(displayID: UInt32, pointSize: CGSize, includeWhiteboard: Bool) {
-        if includeWhiteboard, store.whiteboardModeEnabled {
+        if includeWhiteboard, store.shouldRenderBoard(on: displayID) {
             AnnotationRenderer.drawWhiteboard(in: CGRect(origin: .zero, size: pointSize), background: store.whiteboardBackground)
         }
 
